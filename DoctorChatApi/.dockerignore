@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+error.json
+error500.html
+error_full.json
+extract.js
+extract.py
+wwwroot/
