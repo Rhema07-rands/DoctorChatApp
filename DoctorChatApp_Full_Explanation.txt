@@ -1,0 +1,1202 @@
+================================================================================
+         DOCTORCHATAPP - COMPLETE PROJECT EXPLANATION (LINE-BY-LINE)
+================================================================================
+Author: Generated Code Walkthrough
+Date:   March 2026
+
+This document explains EVERY file in the DoctorChatApp project. It covers:
+  - WHAT each file does
+  - HOW it works (line-by-line logic)
+  - WHY it exists (the design reasoning)
+
+You can use this guide to rebuild a similar telemedicine app from scratch.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1.  PROJECT OVERVIEW & ARCHITECTURE
+2.  CONFIGURATION FILES (app.json, package.json, tsconfig, babel, metro)
+3.  BACKEND API (DoctorChatApi/Program.cs)
+4.  FRONTEND SERVICES (src/services/*)
+5.  FRONTEND CONTEXTS (app/_context/*)
+6.  LAYOUTS (app/_layout.tsx, app/(tab)/_layout.tsx)
+7.  AUTH SCREENS (app/index.tsx, app/login.tsx, app/register.tsx)
+8.  DOCTOR TAB SCREENS (app/(tab)/Doctor_page/*)
+9.  PATIENT TAB SCREENS (app/(tab)/Patient_page/*)
+10. DOCTOR SUBPAGE SCREENS (app/Doctor_subpage/*)
+11. PATIENT SUBPAGE SCREENS (app/Patient_subpage/*)
+12. SHARED COMPONENTS (components/*)
+13. GLOSSARY OF KEY CONCEPTS
+
+================================================================================
+1.  PROJECT OVERVIEW & ARCHITECTURE
+================================================================================
+
+DoctorChatApp is a full-stack telemedicine mobile application built with:
+
+  FRONTEND (Mobile App):
+    - React Native + Expo (managed workflow with custom dev client)
+    - Expo Router (file-based navigation)
+    - TypeScript
+    - @microsoft/signalr (real-time messaging)
+    - react-native-webrtc (video/audio calls)
+
+  BACKEND (API Server):
+    - ASP.NET Core 8 Minimal API (single Program.cs)
+    - Entity Framework Core with MySQL (database ORM)
+    - SignalR Hubs (real-time communication)
+    - JWT Authentication (token-based security)
+    - Cloudinary (image/file upload storage)
+    - BCrypt (password hashing)
+
+  HOW THEY CONNECT:
+    Mobile App  ──HTTP REST──>  ASP.NET API  ──EF Core──>  MySQL Database
+    Mobile App  ──SignalR WS──> SignalR Hubs  (real-time chat + call signaling)
+    Mobile App  ──WebRTC P2P──> Other Mobile App  (direct audio/video streams)
+
+  USER ROLES:
+    1. Doctor  - Manages appointments, consultations, chats, availability
+    2. Patient - Browses doctors, books appointments, chats, makes calls
+
+  NAVIGATION STRUCTURE:
+    / (index.tsx)          -> Splash screen / auto-login check
+    /login                 -> Login form
+    /register              -> Registration form (doctor or patient)
+    /(tab)/Doctor_page/*   -> Doctor's 5 main tabs (Home, Chats, Schedule, Consults, Account)
+    /(tab)/Patient_page/*  -> Patient's 5 main tabs (Home, Chats, Doctors, Rx, Account)
+    /Doctor_subpage/*      -> Doctor's detail screens (chat, calls, settings)
+    /Patient_subpage/*     -> Patient's detail screens (chat, calls, booking, doctor profile)
+
+
+================================================================================
+2.  CONFIGURATION FILES
+================================================================================
+
+--- app.json ---
+PURPOSE: The main Expo configuration file. Tells Expo how to build your app.
+
+KEY FIELDS:
+  "name": "DoctorChatApp"           -> Internal app name used by Expo
+  "slug": "DoctorChatApp"           -> URL-friendly name for Expo's servers
+  "scheme": "doctorchatapp"         -> Deep linking URL scheme (doctorchatapp://...)
+  "version": "1.0.0"                -> Your app version shown in app stores
+  "sdkVersion": "52.0.0"            -> Expo SDK version (determines which native modules are available)
+  "orientation": "portrait"          -> Lock the app to portrait mode only
+  "icon": "./assets/icon.png"       -> App icon file path
+  "splash"                          -> Splash screen configuration (image, colors)
+  "android.adaptiveIcon"            -> Android's adaptive icon (foreground + background)
+  "android.package"                 -> Android package name (com.yourname.doctorchatapp)
+  "ios.bundleIdentifier"            -> iOS bundle ID (com.yourname.doctorchatapp)
+  "plugins"                         -> Expo plugins that modify native code at build time
+    "expo-router"                   -> Enables file-based routing
+    "@config-plugins/react-native-webrtc" -> Adds WebRTC native permissions
+    "react-native-incall-manager"   -> Manages audio routing during calls
+  "extra.eas.projectId"             -> Your EAS (Expo Application Services) project ID
+
+WHY: Without app.json, Expo doesn't know how to configure, build, or publish your app.
+
+
+--- package.json ---
+PURPOSE: Lists all npm dependencies and scripts for the project.
+
+KEY DEPENDENCIES:
+  "expo": "~52.0.0"                  -> The Expo framework itself
+  "expo-router": "~4.0.0"           -> File-based navigation (like Next.js for mobile)
+  "@microsoft/signalr"               -> SignalR client for real-time WebSocket communication
+  "react-native-webrtc"              -> WebRTC for peer-to-peer video/audio calls
+  "react-native-incall-manager"      -> Controls audio routing (speaker/earpiece/bluetooth)
+  "axios"                            -> HTTP client for making API requests
+  "expo-secure-store"                -> Encrypted storage for JWT tokens
+  "@react-native-async-storage/async-storage" -> Persistent key-value storage
+  "expo-notifications"               -> Push notification support
+  "@expo/vector-icons"               -> Icon library (Ionicons, etc.)
+
+KEY SCRIPTS:
+  "start": "expo start"              -> Starts the Expo dev server
+  "android": "expo run:android"      -> Builds and runs on Android
+  "ios": "expo run:ios"              -> Builds and runs on iOS
+
+
+--- tsconfig.json ---
+PURPOSE: TypeScript configuration.
+  "strict": true                     -> Enables all strict type-checking options
+  "extends": "expo/tsconfig.base"    -> Inherits Expo's recommended TypeScript settings
+
+
+--- babel.config.js ---
+PURPOSE: Babel transpilation config. Transforms modern JS/TS into code React Native can run.
+  "presets": ["babel-preset-expo"]   -> Uses Expo's preset which includes React Native transforms
+
+
+--- metro.config.js ---
+PURPOSE: Metro bundler configuration. Metro is React Native's JavaScript bundler.
+  Configures how files are resolved and bundled for the app.
+
+
+================================================================================
+3.  BACKEND API (DoctorChatApi/Program.cs)
+================================================================================
+
+The entire backend is a SINGLE FILE: Program.cs (~1,300 lines).
+This is ASP.NET Core's "Minimal API" pattern — everything in one place.
+
+--- STRUCTURE OF Program.cs ---
+
+Lines 1-21: IMPORTS
+  - System.ComponentModel.DataAnnotations  -> For [Required], [Key] attributes on models
+  - Microsoft.EntityFrameworkCore          -> For database operations (queries, migrations)
+  - BCrypt.Net                             -> For hashing passwords securely
+  - Microsoft.AspNetCore.SignalR           -> For real-time WebSocket hubs
+  - System.Security.Claims                 -> For reading JWT claims (user identity)
+  - Microsoft.IdentityModel.Tokens        -> For JWT token validation
+  - CloudinaryDotNet                       -> For uploading images to Cloudinary CDN
+
+Lines 24-100: APPLICATION SETUP
+
+  Line 31: var builder = WebApplication.CreateBuilder(args);
+    -> Creates the web application builder. This is the entry point for configuring
+       all services (database, auth, CORS, etc.) before the app starts.
+
+  Lines 33-42: CONFIGURATION READING
+    -> Reads connection strings and JWT settings from appsettings.json
+    -> These values are used to connect to MySQL and sign JWT tokens
+    -> The ?? throw pattern ensures the app crashes early if config is missing
+       (fail fast — better than mysterious errors later)
+
+  Lines 44-46: SWAGGER
+    -> Adds Swagger UI for API documentation and testing at /swagger
+
+  Lines 48-53: CLOUDINARY SETUP
+    -> Creates a Cloudinary client for uploading profile pictures and attachments
+    -> Reads CloudName, ApiKey, ApiSecret from appsettings.json
+
+  Lines 55-57: DATABASE SETUP
+    -> Registers Entity Framework Core with MySQL
+    -> UseMySql() configures the MySQL provider with automatic retry on failure
+    -> EnableRetryOnFailure(3) means if the DB connection drops, it retries 3 times
+
+  Lines 59-71: CORS (Cross-Origin Resource Sharing)
+    -> Allows the mobile app to make requests to this API from any local IP
+    -> SetIsOriginAllowed() checks if the request comes from localhost or a LAN IP
+    -> AllowCredentials() is required for SignalR WebSocket connections
+
+  Lines 73-98: JWT AUTHENTICATION
+    -> Configures JWT Bearer authentication
+    -> ValidateIssuer/Audience/Lifetime ensures tokens are valid and not expired
+    -> ClockSkew = TimeSpan.Zero means tokens expire EXACTLY at their expiry time
+    -> OnMessageReceived event extracts the token from query string for SignalR
+       (SignalR WebSocket connections can't use HTTP headers, so they pass tokens in URL)
+
+  Line 100+: AUTHORIZATION
+    -> Adds authorization policies (requires authenticated user)
+
+
+--- DATABASE MODELS (defined as C# classes) ---
+
+  User class:
+    - Id (GUID)        -> Unique identifier
+    - Email, Password  -> Login credentials (password is BCrypt-hashed)
+    - Role             -> "Doctor" or "Patient"
+    - FirstName, LastName, Phone, DateOfBirth, Gender
+    - Specialization, Bio, Education, Experience (Doctor-specific)
+    - BloodGroup, Genotype, Allergies (Patient-specific)
+    - ProfilePictureUrl -> URL of uploaded profile picture
+    - Conditions        -> JSON-stored list of medical conditions the doctor treats
+    - Languages         -> JSON-stored list of languages the doctor speaks
+
+  Message class:
+    - Id, SenderId, ReceiverId, Content, Timestamp
+    - MessageType      -> "text", "image", "audio", "call", "prescription"
+    - AttachmentUrl    -> URL for image/audio attachments
+    - IsRead           -> Whether the receiver has seen this message
+    - PrescriptionId   -> Links to a prescription if message type is "prescription"
+
+  Appointment class:
+    - Id, PatientId, DoctorId, DateTime, Duration
+    - Type             -> "Video", "Audio", "Chat"
+    - Reason           -> Why the patient is booking
+    - Status           -> "Pending", "Confirmed", "Completed", "Cancelled", "Active"
+    - ClinicalNotes, Diagnosis, PrescriptionDetails
+
+  Call class:
+    - Id, CallerId, ReceiverId, CallType, Status, StartTime, EndTime
+
+  Review class:
+    - Id, DoctorId, PatientId, Rating, Comment, DateSubmitted
+
+  PushToken class:
+    - Id, UserId, Token, Platform -> Stores device push notification tokens
+
+  Prescription class:
+    - Id, PatientId, DoctorId, DrugOrActivity, Condition
+    - AlarmTime, IntervalType, SpecificDays
+
+  DoctorChatDbContext:
+    - The Entity Framework DbContext class
+    - DbSet properties for each table (Users, Messages, Appointments, etc.)
+    - OnModelCreating() configures relationships and JSON column conversions
+
+
+--- API ENDPOINTS ---
+
+  POST /api/auth/register
+    -> Creates a new user account
+    -> Hashes password with BCrypt.HashPassword()
+    -> Returns JWT token + user profile
+
+  POST /api/auth/login
+    -> Validates email/password
+    -> Uses BCrypt.Verify() to check password against hash
+    -> Generates JWT token with user claims (Id, Email, Role)
+    -> Returns token + user profile
+
+  GET /api/doctors/search?query=...
+    -> Searches doctors by name, specialization, or conditions
+    -> Returns list of matching doctors with their profiles
+
+  GET /api/appointments
+    -> Returns all appointments for the authenticated user
+    -> Filters by doctor or patient based on user role
+
+  POST /api/appointments
+    -> Creates a new appointment
+    -> Sends real-time notification to the doctor via SignalR
+
+  PUT /api/appointments/{id}/status
+    -> Updates appointment status (Confirm, Complete, Cancel)
+    -> Notifies both parties via SignalR
+
+  PUT /api/appointments/{id}/reschedule
+    -> Changes appointment date/time
+    -> Resets status to "Pending" for re-confirmation
+
+  GET /api/chat/{userId}
+    -> Returns chat history between current user and specified user
+    -> Marks messages as read
+
+  POST /api/upload
+    -> Uploads a file to Cloudinary
+    -> Returns the CDN URL
+
+  POST /api/calls/initiate
+    -> Creates a call record in the database
+    -> Sends "IncomingCall" signal to receiver via SignalR
+
+  PUT /api/calls/{id}/answer
+    -> Marks call as answered
+    -> Sends "CallAnswered" signal to caller
+
+  PUT /api/calls/{id}/end
+    -> Ends the call, records end time
+
+  GET /api/calls/turn-credentials
+    -> Returns TURN server credentials for WebRTC NAT traversal
+
+  POST /api/reviews
+    -> Adds a patient review for a doctor
+
+  PUT /api/reviews/{id}
+    -> Updates an existing review (only by the review author)
+
+  DELETE /api/reviews/{id}
+    -> Deletes a review (only by the review author)
+
+  POST /api/notifications/register-token
+    -> Registers device push notification token
+
+  PUT /api/profile/update
+    -> Updates user profile information
+
+  PUT /api/profile/picture
+    -> Updates profile picture URL
+
+
+--- SIGNALR HUBS ---
+
+  ChatHub (/chathub):
+    -> Handles real-time messaging
+    -> SendMessage() -> Saves message to DB, sends to receiver, confirms to sender
+    -> Joins users to groups based on their user ID for targeted messaging
+
+  SignalingHub (/signalinghub):
+    -> Handles WebRTC call signaling
+    -> CallUser()      -> Sends IncomingCall to receiver
+    -> AnswerCall()    -> Sends CallAnswered to caller
+    -> EndCall()       -> Sends CallEnded to other party
+    -> SendOffer()     -> Forwards WebRTC SDP offer
+    -> SendAnswer()    -> Forwards WebRTC SDP answer
+    -> SendCandidate() -> Forwards ICE candidates
+
+
+================================================================================
+4.  FRONTEND SERVICES (src/services/*)
+================================================================================
+
+--- src/config.ts ---
+PURPOSE: Centralizes the API base URL so every service uses the same address.
+
+  Line 1: import Constants from 'expo-constants';
+    -> Expo Constants gives access to the dev server's hostname
+
+  Lines 7-16: getLocalIp()
+    -> In development (__DEV__ is true), extracts the developer machine's IP
+       from Expo's hostUri (e.g., "192.168.1.5:8081" -> "192.168.1.5")
+    -> This is critical because physical Android devices can't use "localhost"
+       to reach the dev machine. They need the actual LAN IP address.
+    -> Falls back to 'localhost' for production or if not found
+
+  Lines 22-24: API_BASE_URL
+    -> In development: http://<your-lan-ip>:5050
+    -> In production: https://api.doctorchat.com (replace with your real domain)
+
+WHY THIS EXISTS: Without this, you'd have to hardcode the IP in every file,
+and change it whenever your network changes. This auto-detects it.
+
+
+--- src/services/authEvents.ts ---
+PURPOSE: A simple event emitter for authentication events (specifically 401 errors).
+
+  Lines 1-17: AuthEvents class
+    -> Maintains a list of callback functions (listeners)
+    -> onUnauthorized(callback): Registers a listener, returns unsubscribe function
+    -> emitUnauthorized(): Calls ALL registered listeners
+
+  Line 19: export const authEvents = new AuthEvents();
+    -> Creates a singleton instance used across the app
+
+WHY THIS EXISTS: When ANY API call returns 401 (token expired), the api.ts
+interceptor calls authEvents.emitUnauthorized(). UserContext listens for this
+and automatically logs the user out. This is a DECOUPLED approach — the API
+service doesn't need to know about navigation or user state. It just fires
+an event, and whoever is listening handles it.
+
+
+--- src/services/api.ts ---
+PURPOSE: Creates a configured Axios HTTP client that ALL API calls use.
+
+  Lines 7-12: axios.create()
+    -> Creates an axios instance with baseURL pointing to the backend
+    -> Default Content-Type is JSON
+
+  Lines 15-28: REQUEST INTERCEPTOR
+    -> Runs BEFORE every HTTP request is sent
+    -> Reads the JWT token from SecureStore (encrypted storage)
+    -> Attaches it as "Authorization: Bearer <token>" header
+    -> This means you never have to manually add auth headers to API calls
+
+  Lines 31-42: RESPONSE INTERCEPTOR
+    -> Runs AFTER every HTTP response is received
+    -> If response status is 401 (Unauthorized):
+       -> Emits the 'unauthorized' event via authEvents
+       -> UserContext will catch this and log the user out
+    -> All other errors are passed through normally
+
+WHY THIS EXISTS: Centralizes auth header injection and token expiry handling.
+Every file that imports { api } gets automatic authentication.
+
+
+--- src/services/authService.ts ---
+PURPOSE: Provides login() and logout() functions.
+
+  Lines 4-31: login()
+    -> Sends POST to /api/auth/login with email and password
+    -> Backend may return Token or token (different casings) — we handle both
+    -> Saves the JWT token to SecureStore (encrypted, persists across app restarts)
+    -> Saves user profile object to SecureStore
+    -> Returns normalized { token, user } object
+
+  Lines 34-36: logout()
+    -> Simply deletes the token from SecureStore
+    -> The full logout logic (clearing state, disconnecting SignalR, navigating)
+       is handled by UserContext.logout()
+
+
+--- src/services/notificationService.ts ---
+PURPOSE: Handles push notification registration.
+
+  Lines 12-18: Android notification channel
+    -> Android requires a "channel" for notifications (importance, sound, vibration)
+    -> "MAX" importance means notifications will pop up as heads-up notifications
+
+  Lines 21-31: Permission check
+    -> Checks if notification permissions are already granted
+    -> If not, requests them from the user (shows system permission dialog)
+    -> If denied, silently returns (no crash)
+
+  Lines 33-42: Get Expo Push Token
+    -> Uses Expo's push notification service to get a unique device token
+    -> The projectId is needed to identify which Expo project to route pushes through
+
+  Lines 55-62: Register with backend
+    -> Only sends the token to backend if user is already logged in (has JWT)
+    -> This prevents 401 errors during app startup before login
+    -> The backend stores this token and uses it to send push notifications
+
+
+--- src/services/uploadService.ts ---
+PURPOSE: Uploads files (images, etc.) to the backend.
+
+  Lines 3-23: uploadFile()
+    -> Creates a FormData object (required for file uploads)
+    -> React Native requires { uri, name, type } object structure for files
+    -> Sends POST to /api/upload with multipart/form-data content type
+    -> Returns the Cloudinary URL of the uploaded file
+
+
+--- src/services/signalrService.ts ---
+PURPOSE: Manages real-time WebSocket connections using Microsoft SignalR.
+
+  THE SIGNALR SERVICE IS THE MOST IMPORTANT SERVICE IN THE APP.
+  It enables: real-time chat, call signaling, availability updates, and notifications.
+
+  Lines 6-21: CALLBACK ARRAYS
+    -> The service maintains arrays of callback functions for different events
+    -> Components register callbacks to be notified when events occur
+    -> This is the Observer Pattern — multiple listeners for each event type
+
+  Lines 23-42: LISTENER REGISTRATION
+    -> onMessageReceived(callback) — called when a new chat message arrives
+    -> onAvailabilityChanged(callback) — called when a doctor changes status
+    -> on(event, callback) — generic listener for any ChatHub event
+    -> Each returns an unsubscribe function for cleanup
+
+  Lines 44-80: CALL EVENT LISTENERS
+    -> onIncomingCall, onCallAnswered, onCallEnded, onCallFailed, etc.
+    -> These handle the WebRTC call signaling protocol
+    -> Each maintains its own callback array
+
+  Lines 84-130: startConnections()
+    -> Guards against duplicate connections (isConnecting flag)
+    -> Reads JWT token from SecureStore
+    -> STOPS any existing connections first (ensures fresh state)
+    -> Creates TWO separate SignalR hub connections:
+       1. ChatHub (/chathub) — for messages and availability
+       2. SignalingHub (/signalinghub) — for call signaling
+    -> accessTokenFactory provides the JWT for authentication
+    -> withAutomaticReconnect() handles network drops gracefully
+    -> On 401 error, emits unauthorized event (logs user out)
+
+  Lines 132-189: registerListeners()
+    -> Registers SignalR event handlers on the hub connections:
+       - ReceiveMessage -> Notifies all message callbacks
+       - DoctorAvailabilityChanged -> Notifies availability callbacks
+       - MessageSentConfirmation -> Echo of sent messages
+       - IncomingCall, CallAnswered, CallEnded, etc. -> Call events
+       - ReceiveOffer, ReceiveAnswer, ReceiveCandidate -> WebRTC signals
+
+  Lines 191-209: stopConnections()
+    -> Gracefully stops both WebSocket connections
+    -> Sets references to null for garbage collection
+
+  Lines 212-232: HUB METHOD INVOCATIONS
+    -> sendMessage() — sends a chat message through ChatHub
+    -> invoke() — generic method caller on ChatHub
+    -> invokeSignaling() — generic method caller on SignalingHub
+    -> All check connection state before invoking to prevent errors
+
+  Line 243: export const signalRService = new SignalRService();
+    -> Singleton instance shared across the entire app
+
+
+--- src/services/webRtcService.ts ---
+PURPOSE: Manages WebRTC peer-to-peer connections for video/audio calls.
+
+  WebRTC (Web Real-Time Communication) enables direct audio/video streaming
+  between two devices without going through the server.
+
+  Lines 11-24: ICE SERVER CONFIGURATION
+    -> STUN servers help devices discover their public IP address
+    -> Google provides free STUN servers
+    -> TURN servers relay traffic when direct connection fails (firewalls, NAT)
+    -> iceTransportPolicy: 'all' means try direct first, then TURN relay
+
+  Lines 26-36: CLASS PROPERTIES
+    -> peerConnection: The WebRTC connection object
+    -> localStream: Your camera/mic stream
+    -> remoteStream: The other person's camera/mic stream
+    -> pendingCandidates: ICE candidates received before connection is ready
+    -> pendingOffer: SDP offer received before peer connection is created
+
+  Lines 42-74: setupMedia()
+    -> Enumerates available cameras, picks front-facing by default
+    -> Requests camera AND microphone access from the OS
+    -> Audio settings: echoCancellation, noiseSuppression, autoGainControl
+    -> Video settings: 640x480 at 30fps, front-facing camera
+    -> For audio-only calls, video is set to false
+    -> Returns the MediaStream object
+
+  Lines 76-101: refreshIceServers()
+    -> Fetches TURN server credentials from the backend
+    -> TURN credentials expire, so we fetch fresh ones before each call
+    -> Prioritizes TURN servers (for reliability) over STUN servers
+    -> Falls back to Google STUN servers if fetch fails
+
+  Lines 103-173: createPeerConnection()
+    -> Creates the RTCPeerConnection — the core WebRTC object
+    -> Adds local media tracks (your camera/mic) to the connection
+    -> Sets up event listeners:
+       - 'track': When remote media arrives, creates/updates remoteStream
+       - 'icecandidate': Sends ICE candidates to the other peer via SignalR
+       - 'iceconnectionstatechange': Logs connection progress
+       - 'connectionstatechange': When connected, flushes queued candidates
+    -> Processes any buffered offer (received before PC was ready)
+
+  Lines 175-193: createOffer()
+    -> Caller creates an SDP offer (describes their media capabilities)
+    -> Sets it as local description
+    -> Sends it to the other peer via SignalR
+
+  Lines 195-222: handleOffer()
+    -> Receiver processes the caller's SDP offer
+    -> Sets it as remote description
+    -> Flushes queued ICE candidates
+    -> Creates an SDP answer (describes receiver's media capabilities)
+    -> Sends answer back via SignalR
+
+  Lines 224-236: handleAnswer()
+    -> Caller processes the receiver's SDP answer
+    -> Sets it as remote description
+    -> Flushes queued ICE candidates
+
+  Lines 238-266: handleCandidate() & processPendingCandidates()
+    -> ICE candidates describe network paths between the two peers
+    -> If the connection isn't ready yet, candidates are queued
+    -> Once ready, all queued candidates are flushed and applied
+
+  Lines 291-336: closeConnection()
+    -> Stops ALL local media tracks (releases camera/mic hardware)
+    -> Stops ALL remote media tracks
+    -> Closes the peer connection
+    -> Resets all state
+    -> This is critical — without proper cleanup, the camera stays on!
+
+  Lines 337-361: CALL CONTROLS
+    -> toggleMute(): Enables/disables audio tracks
+    -> toggleVideo(): Enables/disables video tracks
+    -> switchCamera(): Switches between front and back camera
+
+
+================================================================================
+5.  FRONTEND CONTEXTS (app/_context/*)
+================================================================================
+
+Contexts are React's way of sharing state across the entire component tree
+without passing props through every level. They act as GLOBAL STATE MANAGERS.
+
+--- ThemeContext.tsx ---
+PURPOSE: Manages light/dark theme colors throughout the app.
+
+  Lines 7-50: LightTheme
+    -> Object containing ALL color tokens for light mode
+    -> Categories: backgrounds, text, accents, status, tab bar, input, misc
+    -> Uses a consistent Tailwind-inspired color palette
+
+  Lines 52-95: DarkTheme
+    -> Same structure but with dark color values
+    -> Dark backgrounds (#0F172A), light text (#F1F5F9)
+
+  Lines 121-155: ThemeProvider
+    -> Loads saved theme preference from AsyncStorage
+    -> Currently forces LightTheme (line 148: isDark = false)
+    -> Provides colors, isDark, toggle(), setMode(), mode to all children
+
+HOW TO USE: Any component can do:
+    const { colors, isDark } = useTheme();
+    <View style={{ backgroundColor: colors.background }}>
+
+
+--- UserContext.tsx ---
+PURPOSE: Manages ALL user state — profile data, auth, and session.
+THIS IS THE MOST IMPORTANT CONTEXT IN THE APP.
+
+  Lines 8-18: IPrescription type
+    -> Defines the shape of a prescription object
+
+  Lines 20-76: UserContextType
+    -> Defines ALL the state values and functions available:
+       - User role (doctor/patient)
+       - Patient data (name, age, DOB, gender, blood group, etc.)
+       - Doctor availability (status, consultation type, working hours)
+       - Professional info (specialization, education, experience, etc.)
+       - Fees & practice info
+       - Prescriptions array
+       - Unread message count
+       - Active chat ID (which chat screen is currently open)
+
+  Lines 81-91: calculateAge()
+    -> Utility function that calculates age from date of birth
+
+  Lines 93-316: UserProvider
+    -> Declares useState hooks for EVERY piece of user data
+    -> refreshUnreadCount() — fetches unread message count from API
+    -> refreshProfile() — THE KEY FUNCTION:
+       1. Reads JWT token and user profile from SecureStore
+       2. Starts SignalR connections (real-time features)
+       3. Populates all state variables from the stored profile
+       4. Handles both doctor and patient data differently
+       5. Refreshes unread count
+
+    -> useEffect on mount:
+       1. Calls refreshProfile()
+       2. Subscribes to auth unauthorized events
+       3. Auto-logs out on 401
+
+    -> logout():
+       1. Stops SignalR connections
+       2. Deletes token and profile from SecureStore
+       3. Resets ALL state variables to defaults
+       4. Navigates to /login
+
+
+--- AppointmentContext.tsx ---
+PURPOSE: Manages appointments and consultations for both doctors and patients.
+
+  Lines 7-61: TYPE DEFINITIONS
+    -> AppointmentStatus: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled' | 'Active'
+    -> Patient, Appointment, Consultation interfaces define data shapes
+
+  Lines 99-280: MOCK DATA
+    -> MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_CONSULTATIONS
+    -> Used as fallback when the backend is unavailable
+    -> Provides a realistic demo experience
+
+  Lines 293-607: AppointmentProvider
+    -> refreshAppointments() — fetches appointments from API
+       - Maps backend data to the Appointment type
+       - Parses dates into display-friendly formats
+       - Falls back to mock data on error
+
+    -> Real-time listeners (SignalR):
+       - NewAppointment -> Adds to the list
+       - AppointmentUpdated -> Updates existing appointment
+
+    -> updateAppointmentStatus() — changes status via API
+    -> rescheduleAppointment() — changes date/time via API
+    -> addAppointmentLocal() — adds an appointment to local state
+    -> getUpcomingAppointments() — filters future appointments
+    -> getPastAppointments() — filters past/completed appointments
+    -> startConsultation() — marks appointment as "Active"
+    -> completeConsultation() — saves notes/diagnosis, marks "Completed"
+
+
+--- CallContext.tsx ---
+PURPOSE: Manages the ENTIRE call lifecycle (audio + video calls).
+THIS IS THE MOST COMPLEX CONTEXT.
+
+  Lines 11-38: TYPE DEFINITIONS
+    -> CallState tracks everything about the current call:
+       isActive, isConnecting, type, role, peerName, duration,
+       isMuted, isSpeakerOn, isVideoOff, notes, diagnosis,
+       localStream, remoteStream, callId, targetUserId, isIncoming,
+       audioRoute, availableAudioDevices
+
+  Lines 85-631: CallProvider
+
+    WebRTC + SignalR Initialization (useEffect):
+      -> Creates WebRtcService instance
+      -> Sets up remote stream callback
+      -> Registers ALL SignalR call event listeners:
+         - IncomingCall: Shows incoming call UI, plays ringtone
+         - CallAnswered: Creates WebRTC offer (if accepted)
+         - CallRejected: Ends call
+         - MissedCall: Ends call
+         - CallEnded: Ends call
+         - CallFailed: Shows error, ends call
+         - ReceiveOffer/Answer/Candidate: WebRTC signaling
+
+    CALL FLOW (step by step):
+      1. Caller calls startCall():
+         - Sets up local media (camera/mic)
+         - Starts InCallManager for audio routing
+         - Initiates call via REST API (/calls/initiate)
+         - Creates peer connection
+         - Navigates to call screen
+
+      2. Receiver gets IncomingCall signal:
+         - Plays ringtone
+         - Shows incoming call screen
+         - User taps Accept or Decline
+
+      3. If accepted (acceptCall()):
+         - Stops ringtone
+         - Sets up local media
+         - Creates peer connection
+         - Answers via REST API (/calls/{id}/answer)
+
+      4. Caller gets CallAnswered with isAccepted=true:
+         - Creates WebRTC offer
+         - Sends to receiver via SignalR
+
+      5. Receiver gets ReceiveOffer:
+         - Sets remote description
+         - Creates answer
+         - Sends back via SignalR
+
+      6. Both sides exchange ICE candidates
+         -> Direct connection established
+         -> Audio/Video streams flow peer-to-peer
+
+      7. Either party calls endCall():
+         - Stops media tracks
+         - Closes WebRTC connection
+         - Notifies server
+         - Resets state
+
+    Audio Device Management:
+      -> Listens for onAudioDeviceChanged events
+      -> Auto-switches to Bluetooth when it becomes available
+      -> Falls back to earpiece/speaker when Bluetooth disconnects
+
+
+--- NotificationContext.tsx ---
+PURPOSE: Handles push notifications and in-app notification routing.
+
+  Lines 10-16: Notification Handler
+    -> Configures how notifications appear when app is in foreground
+    -> shouldShowAlert: true means show the notification banner
+
+  Lines 28-62: Notification Categories
+    -> Defines "chat_message" category with 3 actions:
+       1. REPLY — Inline text reply without opening the app
+       2. MARK_AS_READ — Silently marks message as read
+       3. MUTE — Mutes the conversation (future feature)
+
+  Lines 88-151: Response Handling
+    -> When user interacts with a notification:
+       - REPLY: Sends message via SignalR (no app open needed!)
+       - MARK_AS_READ: Calls API to mark as read
+       - Default tap: Opens the chat conversation screen
+
+  Lines 153-171: Real-time Message Notifications
+    -> Listens for ReceiveMessage via SignalR
+    -> Suppresses notification if user is already in that chat
+    -> Suppresses if the message was sent by the current user
+    -> Suppresses call log messages
+    -> Otherwise, schedules a local notification
+
+
+--- DoctorDirectoryContext.tsx ---
+PURPOSE: Manages the list of all available doctors for patients to browse.
+
+  Lines 10-33: IRegisteredDoctor type
+    -> id, name, specialty, rating, bio, education, availability, etc.
+    -> conditions array: medical conditions the doctor treats
+
+  Lines 64-295: MOCK DATA
+    -> 10 sample doctors with different specialties
+    -> Used as fallback when backend is unavailable
+
+  Lines 316-482: DoctorDirectoryProvider
+    -> refreshDoctors() — fetches real doctor list from /doctors/search
+       - Guards against unauthenticated calls (prevents 401 on startup)
+       - Maps backend data to IRegisteredDoctor format
+
+    -> Real-time availability updates via SignalR:
+       - DoctorAvailabilityChanged -> Updates doctor's status live
+
+    -> searchDoctorsByCondition() — searches by symptoms, specialty, or name
+    -> addReview() — submits a patient review via API
+
+
+================================================================================
+6.  LAYOUTS (Navigation Structure)
+================================================================================
+
+--- app/_layout.tsx (Root Layout) ---
+PURPOSE: The TOP-LEVEL component. Wraps the entire app with providers.
+
+  Lines 19-75: RootLayout
+    -> Nesting order (outside -> inside):
+       1. SafeAreaProvider     -> Handles screen safe areas (notches, status bars)
+       2. ThemeProvider        -> Makes colors available everywhere
+       3. UserProvider         -> Makes user state available everywhere
+       4. AppointmentProvider  -> Makes appointments available everywhere
+       5. DoctorDirectoryProvider -> Makes doctor list available
+       6. NotificationProvider -> Sets up push notifications
+       7. CallProvider         -> Makes call functions available
+       8. Stack navigator      -> The actual screen navigation
+       9. FloatingCallWidget   -> Shows mini call widget when navigating during a call
+
+    -> Stack.Screen entries define ALL navigable screens:
+       - index, login, register (auth screens)
+       - (tab) — the tab navigator entry point
+       - Doctor_subpage/* — doctor detail screens
+       - Patient_subpage/* — patient detail screens
+
+WHY THIS ORDER MATTERS: Each provider may depend on providers above it.
+For example, CallProvider uses UserContext, so UserProvider must be above it.
+
+
+--- app/(tab)/_layout.tsx (Tab Layout) ---
+PURPOSE: Defines the bottom tab bar navigation.
+
+  Lines 11-25: TAB CONFIGURATIONS
+    -> DOCTOR_TABS: Home, Chats, Schedule, Consults, Account
+    -> PATIENT_TABS: Home, Chats, Doctors, Rx, Account
+    -> Each tab has: route name, display title, focused icon, unfocused icon
+
+  Lines 29-100: CustomTabBar
+    -> Custom tab bar component (not the default React Navigation one)
+    -> Shows badge counts:
+       - Chats tab: unread message count
+       - Schedule tab (doctor): pending appointment count
+       - Consults tab (doctor): active consultation count
+    -> Hides when keyboard is open (better UX for text input screens)
+    -> Uses Ionicons for tab icons
+
+  Lines 104-139: TabLayout
+    -> Determines which tabs to show based on user role
+    -> Orders screens so the user's role tabs appear first
+    -> Uses custom tab bar component
+
+
+================================================================================
+7.  AUTH SCREENS
+================================================================================
+
+--- app/index.tsx (Splash / Auto-Login) ---
+PURPOSE: First screen shown on app launch. Checks if user is already logged in.
+
+  LOGIC:
+    1. Shows the app logo and loading indicator
+    2. Reads JWT token from SecureStore
+    3. If token exists:
+       -> Reads user profile, determines role
+       -> Navigates directly to doctor or patient dashboard
+    4. If no token:
+       -> Navigates to login screen
+
+WHY: So returning users don't have to log in every time they open the app.
+
+
+--- app/login.tsx ---
+PURPOSE: Login form with email and password.
+
+  LOGIC:
+    1. User enters email and password
+    2. On submit, calls authService.login()
+    3. If successful:
+       -> Registers push notification token with backend
+       -> Refreshes user profile in context
+       -> Navigates to appropriate dashboard based on role
+    4. If failed:
+       -> Shows error message
+    5. "Register" link navigates to registration screen
+
+
+--- app/register.tsx ---
+PURPOSE: Registration form for new doctors and patients.
+
+  LOGIC:
+    1. User selects role (Doctor or Patient)
+    2. Shows role-specific form fields:
+       - Doctor: name, email, password, specialization, license, experience, etc.
+       - Patient: name, email, password, DOB, gender, blood group, genotype, allergies
+    3. On submit, calls POST /api/auth/register
+    4. If successful:
+       -> Saves token to SecureStore
+       -> Navigates to appropriate dashboard
+
+
+================================================================================
+8.  DOCTOR TAB SCREENS
+================================================================================
+
+--- doctor_dashboard.tsx ---
+  The doctor's home screen showing:
+    - Welcome message with doctor's name
+    - Quick stats (total patients, appointments today, consultations)
+    - Today's appointments list
+    - Quick action buttons (Start Consultation, View Schedule, etc.)
+
+--- doctor_chats.tsx ---
+  The doctor's chat list showing:
+    - Search bar to filter conversations
+    - List of active conversations with patients
+    - Each item shows: patient name, last message, timestamp, unread count
+    - Tapping opens chat_conversation screen
+
+--- appointments.tsx (Doctor) ---
+  The doctor's appointment schedule showing:
+    - Search bar to filter appointments
+    - Tab filters: Upcoming, Past, All
+    - Each appointment card shows: patient name, date, time, type, status
+    - Action buttons: Confirm, Start Consultation, Cancel
+    - Empty state with calendar icon when no appointments
+
+--- consultations.tsx ---
+  The doctor's consultation management showing:
+    - Active consultations section (ongoing calls/chats)
+    - Consultation history section
+    - Each item shows: patient name, type, duration, notes
+    - Can write notes, diagnosis, and prescriptions during active consultations
+
+--- profile.tsx (Doctor) ---
+  The doctor's account/settings screen showing:
+    - Profile picture and name
+    - Professional info link
+    - Fees & practice link
+    - Availability settings (working hours, consultation types, status)
+    - Privacy settings link
+    - Reviews link
+    - Call logs link
+    - Logout button
+
+
+================================================================================
+9.  PATIENT TAB SCREENS
+================================================================================
+
+--- patient_dashboard.tsx ---
+  The patient's home screen showing:
+    - Welcome message with patient's name
+    - Search bar for finding doctors by symptoms
+    - Quick action buttons (Book Appointment, My Prescriptions, etc.)
+    - Featured/available doctors carousel
+    - Upcoming appointments preview
+
+--- patient_chats.tsx ---
+  The patient's chat list showing:
+    - Search bar to filter conversations
+    - List of conversations with doctors
+    - Each item shows: doctor name, specialty, last message, unread count
+
+--- appointments.tsx (Patient) ---
+  The patient's appointments/doctors screen showing:
+    - List of available doctors
+    - Search and filter functionality
+    - Each doctor card shows: name, specialty, rating, availability
+    - Tapping opens doctor_profile screen
+
+--- prescriptions.tsx ---
+  The patient's prescriptions screen showing:
+    - Active prescriptions list
+    - Each prescription shows: drug name, schedule, prescribing doctor
+    - Alarm time and frequency settings
+    - Delete functionality with notification cancellation
+
+--- profile.tsx (Patient) ---
+  The patient's account screen showing:
+    - Profile picture and name
+    - Personal info link
+    - My bookings link
+    - Privacy settings link
+    - Call logs link
+    - Logout button
+
+
+================================================================================
+10. DOCTOR SUBPAGE SCREENS
+================================================================================
+
+--- chat_conversation.tsx (Doctor) ---
+  Full chat interface with a patient:
+    - Message list with sent/received bubbles
+    - Text input with send button
+    - Image attachment support (camera/gallery picker)
+    - Audio recording for voice notes
+    - Prescription card rendering
+    - Call buttons (audio/video)
+    - Real-time message delivery via SignalR
+    - Read receipts
+    - Typing indicators
+
+--- audio_call.tsx / video_call.tsx (Doctor) ---
+  Call interface:
+    - Shows peer name and profile picture
+    - Call duration timer
+    - Controls: mute, speaker, end call (+ camera toggle for video)
+    - Incoming call UI with accept/decline buttons
+    - Doctor-specific: notes, diagnosis, prescription fields
+    - Audio output picker (earpiece/speaker/bluetooth)
+
+--- professional_info.tsx ---
+  Edit doctor's professional details:
+    - Specialization, education, experience, languages, bio
+    - Conditions treated (multi-select)
+    - Saves changes to backend API
+
+--- fees_practice.tsx ---
+  Edit consultation fees and clinic info:
+    - Video call fee, chat fee (in Naira)
+    - Clinic name and address
+
+--- privacy_settings.tsx ---
+  Password change functionality
+
+--- erecords.tsx ---
+  Electronic health records viewer
+
+--- reviews.tsx ---
+  View patient reviews and ratings
+
+--- call_logs.tsx ---
+  History of all calls (audio and video)
+
+
+================================================================================
+11. PATIENT SUBPAGE SCREENS
+================================================================================
+
+--- chat_conversation.tsx (Patient) ---
+  Same as doctor's chat but from patient perspective
+
+--- doctor_profile.tsx ---
+  Detailed doctor profile showing:
+    - Photo, name, specialty, rating
+    - Bio, education, experience
+    - Working hours and availability
+    - Consultation types offered
+    - Patient reviews with ability to add/edit/delete reviews
+    - Book appointment button
+    - Start chat button
+
+--- book_appointment.tsx ---
+  Appointment booking flow:
+    - Select date from calendar
+    - Select available time slot
+    - Choose consultation type (Video/Audio/Chat)
+    - Enter reason for visit
+    - Confirm booking
+
+--- my_bookings.tsx ---
+  List of all patient's appointments:
+    - Upcoming and past tabs
+    - Status indicators
+    - Reschedule and cancel options
+
+--- smart_search.tsx ---
+  AI-powered doctor search:
+    - Search by symptoms or conditions
+    - Results ranked by relevance
+
+--- symptom_checker.tsx ---
+  Symptom assessment tool:
+    - Body area selection
+    - Symptom checklist
+    - Possible conditions
+    - Recommended doctor specialties
+
+--- create_prescription.tsx ---
+  Create a new prescription reminder:
+    - Drug/activity name
+    - Alarm time
+    - Frequency (everyday or specific days)
+    - Local notification scheduling
+
+--- reschedule_appointment.tsx ---
+  Change appointment date/time:
+    - Calendar date picker
+    - Time slot selection
+    - Confirmation
+
+--- personal_info.tsx ---
+  Edit patient's personal information:
+    - Name, phone, DOB, gender
+    - Medical info (blood group, genotype, allergies)
+
+--- audio_call.tsx / video_call.tsx (Patient) ---
+  Same call interface as doctor but without clinical note fields
+
+
+================================================================================
+12. SHARED COMPONENTS
+================================================================================
+
+--- components/FloatingCallWidget.tsx ---
+PURPOSE: Shows a small floating widget when user navigates away during an active call.
+
+  - Displays peer name and call duration
+  - Tap to return to the call screen
+  - Uses CallContext to check if a call is active
+  - Only visible when call is active AND user is NOT on a call screen
+
+--- components/AudioOutputPicker.tsx ---
+PURPOSE: Modal for selecting audio output during calls.
+
+  - Shows available audio routes (Earpiece, Speaker, Bluetooth)
+  - Highlights currently selected route
+  - Uses InCallManager.chooseAudioRoute() to switch
+
+--- src/components/CustomDropdown.tsx ---
+PURPOSE: A reusable dropdown/select component.
+
+  - Modal-based dropdown menu
+  - Customizable options list
+  - Styled to match the app's design system
+
+
+================================================================================
+13. GLOSSARY OF KEY CONCEPTS
+================================================================================
+
+JWT (JSON Web Token):
+  A compact, self-contained token used for authentication. Contains the user's
+  ID, email, role, and expiry time. The backend creates it on login, the app
+  stores it securely, and sends it with every API request as proof of identity.
+
+SignalR:
+  Microsoft's library for real-time web communication. Uses WebSockets when
+  available, falls back to other transports. In this app, it enables:
+  - Instant message delivery
+  - Live call signaling
+  - Real-time availability updates
+  - Appointment notifications
+
+WebRTC (Web Real-Time Communication):
+  A protocol for direct peer-to-peer audio/video communication. The connection
+  setup (signaling) goes through SignalR, but once connected, media streams
+  flow directly between the two devices without going through the server.
+
+SDP (Session Description Protocol):
+  Describes the media capabilities of a WebRTC peer (codecs, formats, etc.).
+  The "offer" describes what the caller can send/receive. The "answer" describes
+  what the receiver can handle. They negotiate compatible media formats.
+
+ICE (Interactive Connectivity Establishment):
+  The process of finding the best network path between two peers. ICE candidates
+  represent possible network routes. STUN servers help discover public IPs.
+  TURN servers relay traffic when direct connection is impossible.
+
+React Context:
+  React's built-in state management. Providers wrap the component tree and make
+  state available to all descendants without prop drilling. In this app, we use
+  6 contexts: User, Theme, Appointments, Calls, Notifications, DoctorDirectory.
+
+Expo Router:
+  File-based routing for React Native. The file structure in app/ maps directly
+  to URL routes. (tab)/ creates tab navigation. _layout.tsx files define
+  navigation containers. Files like login.tsx become /login routes.
+
+SecureStore:
+  Expo's encrypted storage (Keychain on iOS, EncryptedSharedPreferences on Android).
+  Used to store sensitive data like JWT tokens that persist across app restarts.
+
+BCrypt:
+  A password hashing algorithm. Converts passwords into irreversible hashes.
+  Even if the database is compromised, passwords can't be recovered.
+  BCrypt.Verify() checks if a plain password matches a stored hash.
+
+Entity Framework Core:
+  Microsoft's ORM (Object-Relational Mapper) for .NET. Lets you write C# code
+  instead of SQL queries. DbContext is the main class, DbSet<T> represents
+  database tables, and LINQ queries are translated to SQL automatically.
+
+Cloudinary:
+  A cloud service for image and file storage. Files are uploaded to Cloudinary's
+  CDN and accessed via URLs. Used for profile pictures and chat attachments.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+
+This guide covers the complete DoctorChatApp project. To build a similar app:
+
+1. Set up the backend first (ASP.NET + MySQL + SignalR)
+2. Create the React Native project with Expo
+3. Build the service layer (API, Auth, SignalR, WebRTC)
+4. Create the context providers (User, Theme, Appointments, etc.)
+5. Build the screens one by one, starting with auth screens
+6. Add real-time features (chat, calls) last
+
+Good luck! 🚀
