@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DoctorChatApi")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5e265139f2bf9bede40a039e94cf31e179ddfc12")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4ce2e6c83d7c6ad80b80c6279ec1b6426f97954b")]
 [assembly: System.Reflection.AssemblyProductAttribute("DoctorChatApi")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DoctorChatApi")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

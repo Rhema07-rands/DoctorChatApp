@@ -21,7 +21,7 @@ const LOCAL_IP = getLocalIp();
 // because Physical Android devices over LAN cannot resolve 10.0.2.2 (which is only for Emulators).
 export const API_BASE_URL = __DEV__
     ? `http://${LOCAL_IP}:${PORT}`
-    : 'https://doctorchatapi.onrender.com'; // Render.com deployment URL
+    : 'https://doctorchatappwebservice.onrender.com'; // Render.com deployment URL
 
 // WEB RTC / TURN SERVER CONFIGURATION
 export const METERED_TURN_URL = `${API_BASE_URL}/api/calls/turn-credentials`;
