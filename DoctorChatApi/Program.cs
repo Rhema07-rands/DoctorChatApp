@@ -138,7 +138,10 @@ public class Program
         if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
         // Also enable Swagger in Production for debugging deployed API
         if (!app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
-        app.UseHttpsRedirection();
+        // NOTE: Do NOT use UseHttpsRedirection() — Render.com handles HTTPS
+        // at the load balancer. The app runs on HTTP internally, and this
+        // middleware would redirect POST requests, causing lost request bodies.
+        // app.UseHttpsRedirection();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapHub<ChatHub>("/chathub").RequireAuthorization();
