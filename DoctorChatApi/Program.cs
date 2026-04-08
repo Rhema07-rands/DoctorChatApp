@@ -54,7 +54,9 @@ public class Program
 
         builder.Services.AddDbContext<DoctorChatDbContext>(options =>
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString),
-                mySqlOptions => mySqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null)));
+                mySqlOptions => {
+                    mySqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null);
+                }));
 
         builder.Services.AddCors(options =>
         {
@@ -866,6 +868,11 @@ public class DoctorChatDbContext(DbContextOptions<DoctorChatDbContext> options) 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // FIX: TiDB with 'new collation' does not support ascii_general_ci.
+        // Force utf8mb4 + utf8mb4_general_ci on all tables/columns.
+        modelBuilder.HasCharSet("utf8mb4");
+        modelBuilder.UseCollation("utf8mb4_general_ci");
 
         // FIX: All JSON converters now guard against NULL column values.
         // Accounts created before these columns existed have NULL in the DB.
