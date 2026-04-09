@@ -874,6 +874,20 @@ public class DoctorChatDbContext(DbContextOptions<DoctorChatDbContext> options) 
         modelBuilder.HasCharSet("utf8mb4");
         modelBuilder.UseCollation("utf8mb4_general_ci");
 
+        // Force all Guid and string properties to use utf8mb4 as well
+        // (Pomelo defaults Guid to ascii_general_ci)
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(Guid) || property.ClrType == typeof(Guid?) || property.ClrType == typeof(string))
+                {
+                    property.SetCharSet("utf8mb4");
+                    property.SetCollation("utf8mb4_general_ci");
+                }
+            }
+        }
+
         // FIX: All JSON converters now guard against NULL column values.
         // Accounts created before these columns existed have NULL in the DB.
         // JsonSerializer.Deserialize(null) throws, which the global handler
