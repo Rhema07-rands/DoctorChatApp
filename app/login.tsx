@@ -7,19 +7,24 @@ import { useUser } from "./_context/UserContext";
 
 import { login } from "../src/services/authService";
 import { notificationService } from "../src/services/notificationService";
+import { useAuthStore } from "../src/stores/authStore";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { setUserRole, refreshProfile } = useUser();
+  const signIn = useAuthStore((s) => s.signIn);
 
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
+    if (isLoading) return;
 
+    setIsLoading(true);
     try {
       // authService.ts handles saving the token to SecureStore internally.
       // Do NOT call SecureStore.setItemAsync here — data.token may be undefined
@@ -42,7 +47,9 @@ export default function LoginScreen() {
       Alert.alert("Success", "Logged in successfully");
 
       const userRole = data.user?.role || data.User?.role || data.role;
-      setUserRole(userRole === 'Doctor' ? 'doctor' : 'patient');
+      const normalizedRole = userRole === 'Doctor' ? 'doctor' : 'patient';
+      setUserRole(normalizedRole);
+      signIn(normalizedRole);
 
       if (userRole === 'Doctor') {
         router.replace('/(tab)/Doctor_page/doctor_dashboard');
@@ -52,6 +59,8 @@ export default function LoginScreen() {
 
     } catch (error: any) {
       Alert.alert("Login Failed", error.message || "Invalid email or password");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -73,6 +82,7 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            editable={!isLoading}
           />
 
           <Text style={styles.label}>Password</Text>
@@ -82,10 +92,15 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            editable={!isLoading}
           />
 
-          <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-            <Text style={styles.loginBtnText}>Log In</Text>
+          <TouchableOpacity 
+             style={[styles.loginBtn, isLoading && { opacity: 0.7 }]} 
+             onPress={handleLogin}
+             disabled={isLoading}
+          >
+            <Text style={styles.loginBtnText}>{isLoading ? "Logging in..." : "Log In"}</Text>
           </TouchableOpacity>
         </View>
 

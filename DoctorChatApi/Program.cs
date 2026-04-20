@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using BCrypt.Net;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -20,6 +21,12 @@ using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 
 namespace DoctorChatApi;
+
+public class UtcDateTimeConverter : JsonConverter<DateTime>
+{
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.GetDateTime().ToUniversalTime();
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) => writer.WriteStringValue(DateTime.SpecifyKind(value, DateTimeKind.Utc).ToString("O"));
+}
 
 public class Program
 {
@@ -99,7 +106,14 @@ public class Program
             .AddPolicy("RequirePatientRole", policy => policy.RequireClaim(ClaimTypes.Role, "Patient"))
             .AddPolicy("RequireAdminRole", policy => policy.RequireClaim(ClaimTypes.Role, "Admin"));
 
-        builder.Services.AddSignalR(options => { options.EnableDetailedErrors = builder.Environment.IsDevelopment(); });
+        builder.Services.AddSignalR(options => { options.EnableDetailedErrors = builder.Environment.IsDevelopment(); })
+            .AddJsonProtocol(options => { options.PayloadSerializerOptions.Converters.Add(new UtcDateTimeConverter()); });
+            
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new UtcDateTimeConverter());
+        });
+
         builder.Services.AddSingleton<AuthService>(new AuthService(jwtKey, jwtIssuer, jwtAudience));
 
         var app = builder.Build();

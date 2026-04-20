@@ -28,11 +28,11 @@ const PATIENT_TABS = [
 
 function CustomTabBar({ state, navigation }: any) {
   const { userRole, unreadCount, refreshUnreadCount } = useUser();
-  const { appointments, consultations } = useAppointments();
+  const { appointments, getActiveConsultations } = useAppointments();
   const { colors } = useTheme();
   // Safe filtering: fallback to empty array if context is briefly undefined
   const pendingCount = (appointments || []).filter(a => a.status === 'Pending').length;
-  const activeConsultCount = (consultations || []).filter(c => c.isActive).length;
+  const activeConsultCount = getActiveConsultations().length;
 
   // Hide tab bar when keyboard is open
   const [keyboardVisible, setKeyboardVisible] = useState(false);

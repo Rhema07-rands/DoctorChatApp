@@ -30,6 +30,7 @@ import {
 } from 'react-native-gifted-chat';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../../src/services/api';
+import { mediaCacheService } from '../../src/services/mediaCacheService';
 import { signalRService } from '../../src/services/signalrService';
 import { uploadFile } from '../../src/services/uploadService';
 import { useCall } from '../_context/CallContext';
@@ -93,6 +94,18 @@ export default function ChatConversation() {
     // Memoize user objects to prevent stale closures in SignalR listeners
     const currentUserObj = useMemo(() => ({ _id: doctorId, name: currentUserName }), [doctorId, currentUserName]);
     const patientObj = useMemo(() => ({ _id: activePatientId, name: patientName }), [activePatientId, patientName]);
+
+    // Cleanup audio resources on unmount
+    useEffect(() => {
+        return () => {
+            if (playingSoundRef.current) {
+                playingSoundRef.current.unloadAsync().catch(() => {});
+            }
+            if (recording) {
+                recording.stopAndUnloadAsync().catch(() => {});
+            }
+        };
+    }, [recording]);
 
     useEffect(() => {
         const unsubPresence = signalRService.on('UserPresenceChanged', (data: { userId: string, isOnline: boolean }) => {
@@ -183,6 +196,12 @@ export default function ChatConversation() {
                         return GiftedChat.append(prevs, [mapMessageToGiftedChat(newMsg, currentUserObj, patientObj)]);
                     });
                 }
+
+                // Background-cache any attachment for instant playback later
+                const attachUrl = newMsg.attachmentUrl || newMsg.AttachmentUrl;
+                if (attachUrl) {
+                    mediaCacheService.cacheMedia(attachUrl).catch(() => {});
+                }
             }
         };
 
@@ -271,6 +290,8 @@ export default function ChatConversation() {
             if (uploadedUrl) {
                 // Store correlation before sending so the listener can find it
                 uploadCorrelation.current[uploadedUrl] = optimisticMsg._id;
+                // Cache the uploaded file locally for instant playback
+                mediaCacheService.cacheMedia(uploadedUrl).catch(() => {});
                 await signalRService.invoke('SendMessage', activePatientId, text, msgType, uploadedUrl, null);
             } else {
                 setMessages(prev => prev.filter(m => m._id !== optimisticMsg._id));
@@ -287,7 +308,7 @@ export default function ChatConversation() {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                quality: 0.8,
+                quality: 0.6,
             });
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 const asset = result.assets[0];
@@ -337,7 +358,7 @@ export default function ChatConversation() {
                     const uri = recording.getURI();
                     setRecording(null);
                     if (uri) {
-                        sendWithAttachment(uri, 'audio/m4a', 'audio', 'Voice Note');
+                        sendWithAttachment(uri, 'audio/m4a', 'audio', '');
                     }
                 }
             } else {
@@ -383,10 +404,13 @@ export default function ChatConversation() {
     const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
 
     // --- Audio player state ---
-    const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+    const [currentAudioId, setCurrentAudioId] = useState<string | null>(null);
+    const [isAudioPlaying, setIsAudioPlaying] = useState<boolean>(false);
     const playingSoundRef = useRef<Audio.Sound | null>(null);
+    const progressWidths = useRef<Record<string, number>>({});
     const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
     const [audioPosition, setAudioPosition] = useState(0);
+    const audioDebounceRef = useRef(false);
 
     const formatTime = (ms: number) => {
         const totalSec = Math.floor(ms / 1000);
@@ -396,16 +420,19 @@ export default function ChatConversation() {
     };
 
     const handleAudioPlayPause = async (audioUrl: string, messageId: string) => {
+        if (audioDebounceRef.current) return;
+        audioDebounceRef.current = true;
         try {
-            if (playingAudioId === messageId && playingSoundRef.current) {
+            if (currentAudioId === messageId && playingSoundRef.current) {
                 const status = await playingSoundRef.current.getStatusAsync();
                 if (status.isLoaded && status.isPlaying) {
                     await playingSoundRef.current.pauseAsync();
-                    setPlayingAudioId(null); // Just for UI state, ref stays
+                    setIsAudioPlaying(false);
                 } else if (status.isLoaded && !status.isPlaying) {
                     await playingSoundRef.current.playAsync();
-                    setPlayingAudioId(messageId);
+                    setIsAudioPlaying(true);
                 }
+                audioDebounceRef.current = false;
                 return;
             }
 
@@ -415,12 +442,18 @@ export default function ChatConversation() {
                 playingSoundRef.current = null;
             }
 
+            setCurrentAudioId(messageId);
+            setIsAudioPlaying(true);
+            setAudioPosition(0);
+
+            // Resolve from local cache for instant playback
+            const resolvedUri = await mediaCacheService.getOrDownload(audioUrl);
+
             const { sound, status } = await Audio.Sound.createAsync(
-                { uri: audioUrl },
+                { uri: resolvedUri },
                 { shouldPlay: true }
             );
             playingSoundRef.current = sound;
-            setPlayingAudioId(messageId);
             
             if (status.isLoaded && typeof status.durationMillis === 'number') {
                 setAudioDurations(prev => ({ ...prev, [messageId]: status.durationMillis as number }));
@@ -430,16 +463,44 @@ export default function ChatConversation() {
                 if (playbackStatus.isLoaded) {
                     setAudioPosition(playbackStatus.positionMillis || 0);
                     if (playbackStatus.didJustFinish) {
-                        setPlayingAudioId(null);
+                        setIsAudioPlaying(false);
                         setAudioPosition(0);
-                        sound.unloadAsync();
-                        playingSoundRef.current = null;
+                        sound.stopAsync().catch(() => {});
                     }
                 }
             });
         } catch (e) {
             Alert.alert('Error', 'Could not play audio.');
+        } finally {
+            audioDebounceRef.current = false;
         }
+    };
+
+    // Pre-load audio duration metadata without playing
+    const preloadAudioDuration = async (audioUrl: string, messageId: string) => {
+        try {
+            const resolvedUri = await mediaCacheService.getOrDownload(audioUrl);
+            const { sound, status } = await Audio.Sound.createAsync(
+                { uri: resolvedUri },
+                { shouldPlay: false }
+            );
+            if (status.isLoaded && typeof status.durationMillis === 'number') {
+                setAudioDurations(prev => ({ ...prev, [messageId]: status.durationMillis as number }));
+            }
+            await sound.unloadAsync();
+        } catch (e) {
+            // Silently fail — duration will load when user plays
+        }
+    };
+
+    // Hide default text rendering for audio and file custom messages
+    const renderMessageText = (props: any) => {
+        const { currentMessage } = props;
+        if (currentMessage.customType === 'audio' || currentMessage.customType === 'file') {
+            return null;
+        }
+        // Return undefined to let GiftedChat render default text
+        return undefined;
     };
 
     const renderMessageImage = (props: any) => {
@@ -463,21 +524,55 @@ export default function ChatConversation() {
         const { currentMessage } = props;
         if (currentMessage.customType === 'audio' && currentMessage.customUrl) {
             const isRight = currentMessage.user._id === currentUserObj._id;
-            const isPlaying = playingAudioId === currentMessage._id;
+            const isThisAudio = currentAudioId === currentMessage._id;
+            const isPlaying = isThisAudio && isAudioPlaying;
             const thisDuration = audioDurations[currentMessage._id as string] || 0;
+            const pos = isThisAudio ? audioPosition : 0;
+            const progress = thisDuration > 0 ? pos / thisDuration : 0;
+
+            // Pre-load duration if we don't have it yet
+            if (!audioDurations[currentMessage._id as string]) {
+                preloadAudioDuration(currentMessage.customUrl, currentMessage._id as string);
+            }
+
             return (
-                <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8 }}
-                    onPress={() => handleAudioPlayPause(currentMessage.customUrl, currentMessage._id as string)}
-                >
-                    <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={32} color={isRight ? '#FFF' : themeColors.primary} />
-                    <View>
-                        <Text style={{ color: isRight ? '#FFF' : isDark ? themeColors.text : '#1E293B', fontSize: 13 }}>Voice Note</Text>
-                        <Text style={{ color: isRight ? 'rgba(255,255,255,0.7)' : themeColors.textMuted, fontSize: 11 }}>
-                            {isPlaying ? `${formatTime(audioPosition)} / ${formatTime(thisDuration)}` : formatTime(thisDuration || 0)}
-                        </Text>
+                <View style={{ padding: 10, minWidth: 200 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TouchableOpacity onPress={() => handleAudioPlayPause(currentMessage.customUrl, currentMessage._id as string)}>
+                            <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={36} color={isRight ? '#FFF' : themeColors.primary} />
+                        </TouchableOpacity>
+                        <View style={{ flex: 1 }}>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onLayout={(e) => {
+                                    progressWidths.current[currentMessage._id as string] = e.nativeEvent.layout.width;
+                                }}
+                                onPress={async (e) => {
+                                    if (!isThisAudio || thisDuration === 0) return;
+                                    const width = progressWidths.current[currentMessage._id as string] || 1;
+                                    let ratio = e.nativeEvent.locationX / width;
+                                    if (ratio < 0) ratio = 0;
+                                    if (ratio > 1) ratio = 1;
+                                    const newPos = ratio * thisDuration;
+                                    if (playingSoundRef.current) {
+                                        await playingSoundRef.current.setPositionAsync(newPos);
+                                        setAudioPosition(newPos);
+                                    }
+                                }}
+                                style={{ height: 24, justifyContent: 'center', marginVertical: 2 }}
+                            >
+                                <View pointerEvents="none" style={{ width: '100%', height: 4, backgroundColor: isRight ? 'rgba(255,255,255,0.3)' : '#E2E8F0', borderRadius: 2 }}>
+                                    <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progress * 100}%`, backgroundColor: isRight ? '#FFF' : themeColors.primary, borderRadius: 2 }} />
+                                    <View style={{ position: 'absolute', left: `${progress * 100}%`, top: -4, width: 12, height: 12, borderRadius: 6, backgroundColor: isRight ? '#FFF' : themeColors.primary, marginLeft: -6 }} />
+                                </View>
+                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                                <Text style={{ color: isRight ? 'rgba(255,255,255,0.7)' : themeColors.textMuted, fontSize: 10 }}>{formatTime(pos)}</Text>
+                                <Text style={{ color: isRight ? 'rgba(255,255,255,0.7)' : themeColors.textMuted, fontSize: 10 }}>{formatTime(thisDuration)}</Text>
+                            </View>
+                        </View>
                     </View>
-                </TouchableOpacity>
+                </View>
             );
         } else if (currentMessage.customType === 'file' && currentMessage.customUrl) {
             const isRight = currentMessage.user._id === currentUserObj._id;
@@ -606,10 +701,17 @@ export default function ChatConversation() {
                 </TouchableOpacity>
 
                 <View style={[styles.headerContent, { flexShrink: 1 }]}>
-                    <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{initials}</Text>
-                        {isOnline && <View style={styles.onlineHeaderBadge} />}
-                    </View>
+                    {profilePictureUrl ? (
+                        <View>
+                            <Image source={{ uri: profilePictureUrl as string }} style={styles.avatar} />
+                            {isOnline && <View style={styles.onlineHeaderBadge} />}
+                        </View>
+                    ) : (
+                        <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>{initials}</Text>
+                            {isOnline && <View style={styles.onlineHeaderBadge} />}
+                        </View>
+                    )}
                     <View style={{ flexShrink: 1 }}>
                         <Text style={[styles.headerTitle, { color: themeColors.text }]} numberOfLines={1}>{name}</Text>
                         <Text style={[styles.headerSubtitle, !isOnline && { color: themeColors.textMuted }]} numberOfLines={1}>
@@ -639,6 +741,7 @@ export default function ChatConversation() {
                 renderBubble={renderBubble}
                 renderMessageImage={renderMessageImage}
                 renderCustomView={renderCustomView}
+                renderMessageText={renderMessageText}
                 renderInputToolbar={renderInputToolbar}
                 renderComposer={renderComposer}
                 renderSend={renderSend}

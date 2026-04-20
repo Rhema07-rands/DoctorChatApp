@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <mask id="gaps">
+      <rect width="1024" height="1024" fill="white"/>
+      <rect x="200" y="0" width="30" height="1024" fill="black"/>
+      <rect x="794" y="0" width="30" height="1024" fill="black"/>
+    </mask>
+  </defs>
+  <g transform="translate(512, 512) scale(0.68) translate(-512, -512)">
+    <path d="M 372 250 L 372 160 C 372 120 390 90 432 90 L 592 90 C 634 90 652 120 652 160 L 652 250" fill="none" stroke="#253c7a" stroke-width="80" stroke-linecap="round"/>
+    <g mask="url(#gaps)">
+      <rect x="120" y="250" width="784" height="544" rx="70" fill="#253c7a"/>
+    </g>
+    <rect x="382" y="482" width="260" height="80" rx="20" fill="#ffffff"/>
+    <rect x="472" y="392" width="80" height="260" rx="20" fill="#ffffff"/>
+  </g>
+</svg>

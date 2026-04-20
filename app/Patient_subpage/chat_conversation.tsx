@@ -31,6 +31,7 @@ import {
 } from 'react-native-gifted-chat';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../../src/services/api';
+import { mediaCacheService } from '../../src/services/mediaCacheService';
 import { signalRService } from '../../src/services/signalrService';
 import { uploadFile } from '../../src/services/uploadService';
 import { useCall } from '../_context/CallContext';
@@ -158,6 +159,18 @@ export default function PatientChatConversation() {
     const currentUserObj = useMemo(() => ({ _id: patientId, name: currentUserName }), [patientId, currentUserName]);
     const doctorObj = useMemo(() => ({ _id: activeDoctorId, name: doctorName }), [activeDoctorId, doctorName]);
 
+    // Cleanup audio resources on unmount
+    useEffect(() => {
+        return () => {
+            if (playingSoundRef.current) {
+                playingSoundRef.current.unloadAsync().catch(() => {});
+            }
+            if (recording) {
+                recording.stopAndUnloadAsync().catch(() => {});
+            }
+        };
+    }, [recording]);
+
     useEffect(() => {
         let isMounted = true;
 
@@ -237,6 +250,12 @@ export default function PatientChatConversation() {
 
                         return GiftedChat.append(prevs, [mapMessageToGiftedChat(newMsg, currentUserObj, doctorObj)]);
                     });
+                }
+
+                // Background-cache any attachment for instant playback later
+                const attachUrl = newMsg.attachmentUrl || newMsg.AttachmentUrl;
+                if (attachUrl) {
+                    mediaCacheService.cacheMedia(attachUrl).catch(() => { });
                 }
             }
         };
@@ -350,6 +369,8 @@ export default function PatientChatConversation() {
             if (uploadedUrl) {
                 // Store correlation before sending so the listener can find it
                 uploadCorrelation.current[uploadedUrl] = optimisticMsg._id;
+                // Cache the uploaded file locally for instant playback
+                mediaCacheService.cacheMedia(uploadedUrl).catch(() => { });
                 await signalRService.invoke('SendMessage', activeDoctorId, text, msgType, uploadedUrl, null);
             } else {
                 setMessages(prev => prev.filter(m => m._id !== optimisticMsg._id));
@@ -366,7 +387,7 @@ export default function PatientChatConversation() {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                quality: 0.8,
+                quality: 0.6,
             });
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 const asset = result.assets[0];
@@ -402,7 +423,7 @@ export default function PatientChatConversation() {
                     const uri = recording.getURI();
                     setRecording(null);
                     if (uri) {
-                        sendWithAttachment(uri, 'audio/m4a', 'audio', 'Voice Note');
+                        sendWithAttachment(uri, 'audio/m4a', 'audio', '');
                     }
                 }
             } else {
@@ -540,10 +561,13 @@ export default function PatientChatConversation() {
     const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
 
     // --- Audio player state ---
-    const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+    const [currentAudioId, setCurrentAudioId] = useState<string | null>(null);
+    const [isAudioPlaying, setIsAudioPlaying] = useState<boolean>(false);
     const playingSoundRef = useRef<Audio.Sound | null>(null);
+    const progressWidths = useRef<Record<string, number>>({});
     const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
     const [audioPosition, setAudioPosition] = useState(0);
+    const audioDebounceRef = useRef(false);
 
     const formatTime = (ms: number) => {
         const totalSec = Math.floor(ms / 1000);
@@ -553,16 +577,19 @@ export default function PatientChatConversation() {
     };
 
     const handleAudioPlayPause = async (audioUrl: string, messageId: string) => {
+        if (audioDebounceRef.current) return;
+        audioDebounceRef.current = true;
         try {
-            if (playingAudioId === messageId && playingSoundRef.current) {
+            if (currentAudioId === messageId && playingSoundRef.current) {
                 const status = await playingSoundRef.current.getStatusAsync();
                 if (status.isLoaded && status.isPlaying) {
                     await playingSoundRef.current.pauseAsync();
-                    setPlayingAudioId(null);
+                    setIsAudioPlaying(false);
                 } else if (status.isLoaded && !status.isPlaying) {
                     await playingSoundRef.current.playAsync();
-                    setPlayingAudioId(messageId);
+                    setIsAudioPlaying(true);
                 }
+                audioDebounceRef.current = false;
                 return;
             }
 
@@ -571,13 +598,19 @@ export default function PatientChatConversation() {
                 playingSoundRef.current = null;
             }
 
+            setCurrentAudioId(messageId);
+            setIsAudioPlaying(true);
+            setAudioPosition(0);
+
+            // Resolve from local cache for instant playback
+            const resolvedUri = await mediaCacheService.getOrDownload(audioUrl);
+
             const { sound, status } = await Audio.Sound.createAsync(
-                { uri: audioUrl },
+                { uri: resolvedUri },
                 { shouldPlay: true }
             );
             playingSoundRef.current = sound;
-            setPlayingAudioId(messageId);
-            
+
             if (status.isLoaded && typeof status.durationMillis === 'number') {
                 setAudioDurations(prev => ({ ...prev, [messageId]: status.durationMillis as number }));
             }
@@ -586,15 +619,16 @@ export default function PatientChatConversation() {
                 if (playbackStatus.isLoaded) {
                     setAudioPosition(playbackStatus.positionMillis || 0);
                     if (playbackStatus.didJustFinish) {
-                        setPlayingAudioId(null);
+                        setIsAudioPlaying(false);
                         setAudioPosition(0);
-                        sound.unloadAsync();
-                        playingSoundRef.current = null;
+                        sound.stopAsync().catch(() => {});
                     }
                 }
             });
         } catch (e) {
             Alert.alert('Error', 'Could not play audio.');
+        } finally {
+            audioDebounceRef.current = false;
         }
     };
 
@@ -619,21 +653,51 @@ export default function PatientChatConversation() {
         const { currentMessage } = props;
         if (currentMessage.customType === 'audio' && currentMessage.customUrl) {
             const isRight = currentMessage.user._id === currentUserObj._id;
-            const isPlaying = playingAudioId === currentMessage._id;
+            const isThisAudio = currentAudioId === currentMessage._id;
+            const isPlaying = isThisAudio && isAudioPlaying;
             const thisDuration = audioDurations[currentMessage._id as string] || 0;
+            const pos = isThisAudio ? audioPosition : 0;
+            const progress = thisDuration > 0 ? pos / thisDuration : 0;
+
             return (
-                <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8 }}
-                    onPress={() => handleAudioPlayPause(currentMessage.customUrl, currentMessage._id as string)}
-                >
-                    <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={32} color={isRight ? '#FFF' : '#3B82F6'} />
-                    <View>
-                        <Text style={{ color: isRight ? '#FFF' : '#1E293B', fontSize: 13 }}>Voice Note</Text>
-                        <Text style={{ color: isRight ? 'rgba(255,255,255,0.7)' : '#94A3B8', fontSize: 11 }}>
-                            {isPlaying ? `${formatTime(audioPosition)} / ${formatTime(thisDuration)}` : formatTime(thisDuration || 0)}
-                        </Text>
+                <View style={{ padding: 10, minWidth: 200 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TouchableOpacity onPress={() => handleAudioPlayPause(currentMessage.customUrl, currentMessage._id as string)}>
+                            <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={36} color={isRight ? '#FFF' : '#3B82F6'} />
+                        </TouchableOpacity>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: isRight ? '#FFF' : '#1E293B', fontSize: 13, marginBottom: 4 }}>{currentMessage.text}</Text>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onLayout={(e) => {
+                                    progressWidths.current[currentMessage._id as string] = e.nativeEvent.layout.width;
+                                }}
+                                onPress={async (e) => {
+                                    if (!isThisAudio || thisDuration === 0) return;
+                                    const width = progressWidths.current[currentMessage._id as string] || 1;
+                                    let ratio = e.nativeEvent.locationX / width;
+                                    if (ratio < 0) ratio = 0;
+                                    if (ratio > 1) ratio = 1;
+                                    const newPos = ratio * thisDuration;
+                                    if (playingSoundRef.current) {
+                                        await playingSoundRef.current.setPositionAsync(newPos);
+                                        setAudioPosition(newPos);
+                                    }
+                                }}
+                                style={{ height: 24, justifyContent: 'center', marginVertical: 2 }}
+                            >
+                                <View pointerEvents="none" style={{ width: '100%', height: 4, backgroundColor: isRight ? 'rgba(255,255,255,0.3)' : '#E2E8F0', borderRadius: 2 }}>
+                                    <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progress * 100}%`, backgroundColor: isRight ? '#FFF' : '#3B82F6', borderRadius: 2 }} />
+                                    <View style={{ position: 'absolute', left: `${progress * 100}%`, top: -4, width: 12, height: 12, borderRadius: 6, backgroundColor: isRight ? '#FFF' : '#3B82F6', marginLeft: -6 }} />
+                                </View>
+                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                                <Text style={{ color: isRight ? 'rgba(255,255,255,0.7)' : '#94A3B8', fontSize: 10 }}>{formatTime(pos)}</Text>
+                                <Text style={{ color: isRight ? 'rgba(255,255,255,0.7)' : '#94A3B8', fontSize: 10 }}>{formatTime(thisDuration)}</Text>
+                            </View>
+                        </View>
                     </View>
-                </TouchableOpacity>
+                </View>
             );
         } else if (currentMessage.customType === 'file' && currentMessage.customUrl) {
             const isRight = currentMessage.user._id === currentUserObj._id;
@@ -759,7 +823,11 @@ export default function PatientChatConversation() {
                     <Ionicons name="arrow-back" size={24} color="#1E293B" />
                 </TouchableOpacity>
 
-                <View style={[styles.headerContent, { flexShrink: 1 }]}>
+                <TouchableOpacity
+                    style={[styles.headerContent, { flexShrink: 1 }]}
+                    activeOpacity={0.7}
+                    onPress={() => router.push({ pathname: '/Patient_subpage/doctor_profile', params: { doctorId: activeDoctorId } } as any)}
+                >
                     <View style={styles.avatar}>
                         <Text style={styles.avatarText}>{initials || 'DR'}</Text>
                         {isOnline && <View style={styles.onlineHeaderBadge} />}
@@ -771,7 +839,7 @@ export default function PatientChatConversation() {
                             <Text style={[styles.headerSubtitle, { color: doctorAvailability === 'Available' ? '#22C55E' : doctorAvailability === 'Busy' ? '#F59E0B' : '#94A3B8' }]} numberOfLines={1}>{isOnline ? 'Online' : doctorAvailability}</Text>
                         </View>
                     </View>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.headerActions}>
 

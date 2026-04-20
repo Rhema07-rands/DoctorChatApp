@@ -3,6 +3,8 @@ import React from 'react';
 import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FloatingCallWidget from '../components/FloatingCallWidget';
+import AppLockScreen from './components/AppLockScreen';
+import { AppLockProvider, useAppLock } from './_context/AppLockContext';
 import { AppointmentProvider } from './_context/AppointmentContext';
 import { CallProvider } from './_context/CallContext';
 import { DoctorDirectoryProvider } from './_context/DoctorDirectoryContext';
@@ -16,6 +18,14 @@ if (!(Keyboard as any).removeListener) {
     };
 }
 
+function AppLockOverlay() {
+    const { isLocked } = useAppLock();
+    if (isLocked) {
+        return <AppLockScreen />;
+    }
+    return null;
+}
+
 export default function RootLayout() {
     const UP = UserProvider as any;
     const AP = AppointmentProvider as any;
@@ -27,9 +37,11 @@ export default function RootLayout() {
                 <UP>
                     <AP>
                         <DP>
-                            <NotificationProvider>
-                                <CallProvider>
-                                    <Stack screenOptions={{ headerShown: false }}>
+                            <AppLockProvider>
+                                <NotificationProvider>
+                                    <CallProvider>
+                                        <AppLockOverlay />
+                                        <Stack screenOptions={{ headerShown: false }}>
                                         {/* Base Entry Screens */}
                                         <Stack.Screen name="index" />
                                         <Stack.Screen name="login" />
@@ -66,8 +78,9 @@ export default function RootLayout() {
                                     <FloatingCallWidget />
                                 </CallProvider>
                             </NotificationProvider>
-                        </DP>
-                    </AP>
+                        </AppLockProvider>
+                    </DP>
+                </AP>
                 </UP>
             </ThemeProvider>
         </SafeAreaProvider>

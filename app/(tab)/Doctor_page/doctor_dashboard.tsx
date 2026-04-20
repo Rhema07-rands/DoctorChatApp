@@ -121,7 +121,7 @@ export default function DoctorDashboard() {
           message: "Active conversation",
           time: "Now",
           color: patient?.avatarColor || '#3B82F6',
-          profilePicture: patient?.profilePictureUrl
+          profilePicture: a.patientProfilePictureUrl || patient?.profilePictureUrl
         });
       }
     });
@@ -244,7 +244,7 @@ export default function DoctorDashboard() {
                         style={styles.secondaryBtn}
                         onPress={() => router.push({
                           pathname: '/Doctor_subpage/chat_conversation',
-                          params: { id: appt.patientId, name: appt.patientName, initials: patient?.initials || 'PT' }
+                          params: { id: appt.patientId, name: appt.patientName, initials: patient?.initials || 'PT', profilePictureUrl: appt.patientProfilePictureUrl || patient?.profilePictureUrl }
                         } as any)}
                       >
                         <Text style={styles.btnTextBlue}>Message</Text>
@@ -285,7 +285,7 @@ export default function DoctorDashboard() {
                   style={[styles.messageRow, idx !== recentActiveChats.length - 1 && [styles.messageBorder, { borderBottomColor: themeColors.separator }]]}
                   onPress={() => router.push({
                     pathname: '/Doctor_subpage/chat_conversation',
-                    params: { id: chat.id, name: chat.name, initials: chat.initials }
+                    params: { id: chat.id, name: chat.name, initials: chat.initials, profilePictureUrl: chat.profilePicture }
                   } as any)}
                 >
                   {chat.profilePicture ? (

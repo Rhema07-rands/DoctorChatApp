@@ -13,7 +13,9 @@ export const uploadFile = async (fileUri: string, mimeType: string) => {
 
     try {
         const response = await api.post('/upload', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
         });
         return response.data.url; // Returns the uploaded file URL
     } catch (error) {

@@ -87,7 +87,7 @@ export default function ERecordsScreen() {
                     <Text style={styles.detailValue}>{patientInfo.allergies || 'None recorded'}</Text>
                 </View>
 
-                {patientInfo.medicalRecordsUrl && (
+                {patientInfo.medicalRecordsUrl ? (
                     <TouchableOpacity
                         style={styles.registrationDocBtn}
                         onPress={() => handleOpenDocument(patientInfo.medicalRecordsUrl)}
@@ -95,6 +95,11 @@ export default function ERecordsScreen() {
                         <Ionicons name="document-text" size={20} color="#3B82F6" />
                         <Text style={styles.registrationDocText}>View Medical Record</Text>
                     </TouchableOpacity>
+                ) : (
+                    <View style={[styles.registrationDocBtn, { backgroundColor: '#F1F5F9', marginTop: 8 }]}>
+                        <Ionicons name="document-text-outline" size={20} color="#94A3B8" />
+                        <Text style={[styles.registrationDocText, { color: '#94A3B8' }]}>No registration record uploaded</Text>
+                    </View>
                 )}
             </View>
         );

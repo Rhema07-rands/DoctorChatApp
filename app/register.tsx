@@ -20,6 +20,7 @@ import * as SecureStore from 'expo-secure-store';
 import { api } from "../src/services/api";
 import { notificationService } from "../src/services/notificationService";
 import { uploadFile } from "../src/services/uploadService";
+import { useAuthStore } from "../src/stores/authStore";
 import { useUser } from "./_context/UserContext";
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
@@ -30,7 +31,9 @@ const SPECIALTIES = ['Cardiology', 'Dermatology', 'Neurology', 'Pediatrics', 'Ge
 export default function RegisterScreen() {
   const router = useRouter();
   const { refreshProfile } = useUser();
+  const signIn = useAuthStore((s) => s.signIn);
   const [userType, setUserType] = useState<'patient' | 'doctor'>('patient');
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
 
@@ -108,6 +111,9 @@ export default function RegisterScreen() {
       Alert.alert("Error", "Please fill in all basic required fields.");
       return;
     }
+
+    if (isLoading) return;
+    setIsLoading(true);
 
     if (formData.password !== formData.confirmPassword) {
       Alert.alert("Error", "Passwords do not match");
@@ -204,15 +210,20 @@ export default function RegisterScreen() {
 
       Alert.alert("Success", "Account created successfully!");
 
+      // Sync Zustand auth store
+      signIn(userType);
+
       // Navigation Logic
       if (userType === 'doctor') {
-        router.push('/(tab)/Doctor_page/doctor_dashboard');
+        router.replace('/(tab)/Doctor_page/doctor_dashboard');
       } else {
-        router.push('/(tab)/Patient_page/patient_dashboard');
+        router.replace('/(tab)/Patient_page/patient_dashboard');
       }
     } catch (error: any) {
       console.error(error.response?.data);
       Alert.alert("Registration Failed", error.response?.data || error.message || "Failed to create account");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -266,35 +277,35 @@ export default function RegisterScreen() {
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="First Name" />
-              <TextInput style={styles.input} placeholder="John" onChangeText={(t) => handleInputChange('firstName', t)} />
+              <TextInput style={styles.input} placeholder="John" onChangeText={(t) => handleInputChange('firstName', t)} editable={!isLoading} />
             </View>
             <View style={styles.halfInput}>
               <Label text="Last Name" />
-              <TextInput style={styles.input} placeholder="Doe" onChangeText={(t) => handleInputChange('lastName', t)} />
+              <TextInput style={styles.input} placeholder="Doe" onChangeText={(t) => handleInputChange('lastName', t)} editable={!isLoading} />
             </View>
           </View>
 
           <Label text="Email" />
-          <TextInput style={styles.input} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" onChangeText={(t) => handleInputChange('email', t)} />
+          <TextInput style={styles.input} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" onChangeText={(t) => handleInputChange('email', t)} editable={!isLoading} />
 
           <Label text="Phone Number" />
-          <TextInput style={styles.input} placeholder="+1 234 567 8900" keyboardType="phone-pad" onChangeText={(t) => handleInputChange('phone', t)} />
+          <TextInput style={styles.input} placeholder="+1 234 567 8900" keyboardType="phone-pad" maxLength={11} onChangeText={(t) => handleInputChange('phone', t)} editable={!isLoading} />
 
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="Password" />
-              <TextInput style={styles.input} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('password', t)} />
+              <TextInput style={styles.input} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('password', t)} editable={!isLoading} />
             </View>
             <View style={styles.halfInput}>
               <Label text="Confirm Password" />
-              <TextInput style={styles.input} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('confirmPassword', t)} />
+              <TextInput style={styles.input} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('confirmPassword', t)} editable={!isLoading} />
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="Date of Birth" />
-              <TextInput style={styles.input} placeholder="mm/dd/yyyy" onChangeText={(t) => handleInputChange('dob', t)} />
+              <TextInput style={styles.input} placeholder="mm/dd/yyyy" onChangeText={(t) => handleInputChange('dob', t)} editable={!isLoading} />
             </View>
             <View style={styles.halfInput}>
               <Label text="Gender" />
@@ -392,10 +403,11 @@ export default function RegisterScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: userType === 'patient' ? '#4CAF50' : '#1E3A8A' }]}
+            style={[styles.submitBtn, { backgroundColor: userType === 'patient' ? '#4CAF50' : '#1E3A8A' }, isLoading && { opacity: 0.7 }]}
             onPress={handleSignUp}
+            disabled={isLoading}
           >
-            <Text style={styles.submitBtnText}>Sign Up as {userType === 'patient' ? 'Patient' : 'Doctor'}</Text>
+            <Text style={styles.submitBtnText}>{isLoading ? 'Signing up...' : `Sign Up as ${userType === 'patient' ? 'Patient' : 'Doctor'}`}</Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 40 }} />

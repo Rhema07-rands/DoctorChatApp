@@ -34,6 +34,7 @@ export interface Appointment {
     dateTime: string; // Raw ISO string for safe date math
     date: string;     // Display-only (YYYY-MM-DD)
     time: string;     // Display-only (e.g. "10:00 AM")
+    patientProfilePictureUrl?: string; // Add Patient Profile Picture
     type: ConsultationType;
     reason: string;
     status: AppointmentStatus;
@@ -327,6 +328,7 @@ export const AppointmentProvider = ({ children }: { children: React.ReactNode })
                         dateTime: dt,
                         date: `${yyyy}-${mm}-${dd}`,
                         time: `${hh}:${min} ${ampm}`,
+                        patientProfilePictureUrl: a.patient?.profilePictureUrl,
                         type: a.type || 'Video',
                         reason: a.reason,
                         status: a.status || 'Pending',
@@ -367,6 +369,7 @@ export const AppointmentProvider = ({ children }: { children: React.ReactNode })
                 dateTime: dt,
                 date: `${yyyy}-${mm}-${dd}`,
                 time: `${hh}:${min} ${ampm}`,
+                patientProfilePictureUrl: a.patient?.profilePictureUrl,
                 type: a.type || 'Video',
                 reason: a.reason,
                 status: a.status || 'Pending',

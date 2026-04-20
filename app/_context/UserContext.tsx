@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '../../src/services/api';
 import { authEvents } from '../../src/services/authEvents';
 import { signalRService } from '../../src/services/signalrService';
+import { useAuthStore } from '../../src/stores/authStore';
 
 export type IPrescription = {
     id: string;
@@ -263,8 +264,11 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
             console.log('User logged out and state cleared.');
 
-            // Redirect to login screen
-            router.replace('/login');
+            // Clear Zustand auth state
+            useAuthStore.getState().signOut();
+
+            // Redirect to landing screen
+            router.replace('/');
         } catch (e) {
             console.error('Error during logout:', e);
         }

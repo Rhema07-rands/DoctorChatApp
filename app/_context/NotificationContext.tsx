@@ -171,35 +171,11 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         });
 
         const unsubNewAppt = signalRService.on('NewAppointment', (appt: any) => {
-            if (userRole === 'doctor') {
-                const patientName = appt.patient?.firstName
-                    ? `${appt.patient.firstName} ${appt.patient.lastName}`
-                    : "A patient";
-                Notifications.scheduleNotificationAsync({
-                    content: {
-                        title: "New Appointment Booked",
-                        body: `${patientName} has booked an appointment for ${new Date(appt.dateTime).toLocaleString()}.`,
-                        data: { type: 'appointment', apptId: appt.id },
-                    },
-                    trigger: null,
-                });
-            }
+            // Handled exclusively by Backend Push Notification service
         });
 
         const unsubApptUpdated = signalRService.on('AppointmentUpdated', (appt: any) => {
-            const isDoctor = userRole === 'doctor';
-            const otherPartyName = isDoctor
-                ? (appt.patient?.firstName ? `${appt.patient.firstName} ${appt.patient.lastName}` : "Patient")
-                : (appt.doctor?.firstName ? `Dr. ${appt.doctor.firstName} ${appt.doctor.lastName}` : "Doctor");
-
-            Notifications.scheduleNotificationAsync({
-                content: {
-                    title: `Appointment ${appt.status}`,
-                    body: `Your appointment with ${otherPartyName} is now ${appt.status.toLowerCase()}.`,
-                    data: { type: 'appointment', apptId: appt.id },
-                },
-                trigger: null,
-            });
+            // Handled exclusively by Backend Push Notification service
         });
 
         return () => {

@@ -67,7 +67,7 @@ function showNearbyPicker() {
         'What would you like to find near you?',
         [
             { text: 'Pharmacies', onPress: () => openNearbyInMaps('pharmacies near me') },
-            { text: 'Hospitals',  onPress: () => openNearbyInMaps('hospitals near me') },
+            { text: 'Hospitals', onPress: () => openNearbyInMaps('hospitals near me') },
             { text: 'Cancel', style: 'cancel' },
         ]
     );
@@ -94,7 +94,7 @@ export default function PatientDashboard() {
     const router = useRouter();
     const { appointments, updateAppointmentStatus, refreshAppointments } = useAppointments();
     const { doctors, getDoctorById } = useDoctorDirectory();
-    const { patientName, patientAge, patientId, patientBloodGroup, patientGenotype, profilePictureUrl } = useUser();
+    const { patientName, patientAge, patientId, patientGender, patientBloodGroup, patientGenotype, profilePictureUrl } = useUser();
     const { colors, isDark } = useTheme();
 
 
@@ -227,7 +227,7 @@ export default function PatientDashboard() {
                             </View>
                             <View style={styles.patientInfo}>
                                 <Text style={[styles.patientName, { color: colors.text }]}>{patientName}</Text>
-                                <Text style={[styles.patientMeta, { color: colors.textMuted }]}>Age {patientAge} • Patient ID: {patientId}</Text>
+                                <Text style={[styles.patientMeta, { color: colors.textMuted }]}>• Age: {patientAge} • Gender: {patientGender || 'Unknown'}</Text>
                                 <View style={styles.verifiedRow}>
                                     <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
                                     <Text style={styles.verifiedText}>Verified</Text>
