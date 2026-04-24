@@ -156,7 +156,7 @@ export default function PatientVideoCallScreen() {
                                     <View style={{ width: 44 }} />
                                 </View>
 
-                                <Text style={styles.doctorNameOverlay}>{params.doctorName || "Mock Doctor"}</Text>
+                                <Text style={styles.doctorNameOverlay}>{params.doctorName || "Doctor"}</Text>
 
                                 <View style={styles.pipContainer}>
                                     {localStream && !isVideoOff ? (

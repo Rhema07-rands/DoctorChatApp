@@ -18,7 +18,8 @@ const BODY_AREAS = [
     { id: 'chest', label: 'Chest & Lungs', icon: '🫁', symptoms: ['Chest pain', 'Shortness of breath', 'Cough', 'Wheezing', 'Palpitations', 'Chest tightness'] },
     { id: 'heart', label: 'Heart', icon: '❤️', symptoms: ['Rapid heartbeat', 'Chest pressure', 'Swollen ankles', 'Fatigue', 'Irregular pulse'] },
     { id: 'stomach', label: 'Stomach & Abdomen', icon: '🤢', symptoms: ['Nausea', 'Vomiting', 'Abdominal pain', 'Bloating', 'Diarrhea', 'Constipation', 'Acid reflux'] },
-    { id: 'skin', label: 'Skin', icon: '🩹', symptoms: ['Rash', 'Itching', 'Swelling', 'Dry skin', 'Acne', 'Bruising easily', 'Wound not healing'] },
+    { id: 'skin', label: 'Skin', icon: '🩹', symptoms: ['Rash', 'Itching', 'Swelling', 'Flaky/peeling skin', 'Burns', 'Lacerations/cuts', 'Acne'] },
+    { id: 'pelvic', label: 'Pelvic & Reproductive', icon: '🧬', symptoms: ['Pelvic pain', 'Menstrual issues', 'Pregnancy', 'UTI', 'Fertility', 'STI'] },
     { id: 'muscles', label: 'Muscles & Joints', icon: '💪', symptoms: ['Joint pain', 'Back pain', 'Muscle cramps', 'Stiffness', 'Swollen joints', 'Weakness'] },
     { id: 'mental', label: 'Mental Health', icon: '🧘', symptoms: ['Anxiety', 'Depression', 'Insomnia', 'Stress', 'Panic attacks', 'Mood swings'] },
     { id: 'general', label: 'General', icon: '🌡️', symptoms: ['Fever', 'Fatigue', 'Weight change', 'Night sweats', 'Loss of appetite', 'Chills'] },
@@ -34,8 +35,8 @@ const DURATION_OPTIONS = ['Less than a day', '1-3 days', '4-7 days', '1-2 weeks'
 
 const SPECIALTY_MAP: Record<string, string> = {
     head: 'Neurology', ent: 'ENT', chest: 'Pulmonology', heart: 'Cardiology',
-    stomach: 'Gastroenterology', skin: 'Dermatology', muscles: 'Orthopedics',
-    mental: 'Psychiatry', general: 'General Practice',
+    stomach: 'Gastroenterology', skin: 'Dermatology', pelvic: 'Obstetrics & Gynecology', 
+    muscles: 'Orthopedics', mental: 'Psychiatry', general: 'General Practice',
 };
 
 // ── Component ───────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ import { useUser } from "./_context/UserContext";
 const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 const GENOTYPES = ['AA', 'AS', 'SS', 'AC'];
-const SPECIALTIES = ['Cardiology', 'Dermatology', 'Neurology', 'Pediatrics', 'General Surgery'];
+const SPECIALTIES = ['Cardiology', 'Dermatology', 'Neurology', 'Pediatrics', 'General Surgery', 'Obstetrics & Gynecology', 'Emergency Medicine'];
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -112,13 +112,18 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (isLoading) return;
-    setIsLoading(true);
-
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert("Error", "Passwords do not match. Please make sure both passwords are identical.");
       return;
     }
+
+    if (formData.password.length < 8) {
+      Alert.alert("Error", "Password must be at least 8 characters long.");
+      return;
+    }
+
+    if (isLoading) return;
+    setIsLoading(true);
 
     // Role-specific checks
     if (userType === 'doctor') {
@@ -298,7 +303,19 @@ export default function RegisterScreen() {
             </View>
             <View style={styles.halfInput}>
               <Label text="Confirm Password" />
-              <TextInput style={styles.input} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('confirmPassword', t)} editable={!isLoading} />
+              <TextInput
+                style={[
+                  styles.input,
+                  formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && styles.inputError
+                ]}
+                placeholder="••••••••"
+                secureTextEntry
+                onChangeText={(t) => handleInputChange('confirmPassword', t)}
+                editable={!isLoading}
+              />
+              {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
+                <Text style={styles.errorHint}>Passwords do not match</Text>
+              )}
             </View>
           </View>
 
@@ -403,9 +420,13 @@ export default function RegisterScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: userType === 'patient' ? '#4CAF50' : '#1E3A8A' }, isLoading && { opacity: 0.7 }]}
+            style={[
+              styles.submitBtn,
+              { backgroundColor: userType === 'patient' ? '#4CAF50' : '#1E3A8A' },
+              (isLoading || (formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword)) && { opacity: 0.5 }
+            ]}
             onPress={handleSignUp}
-            disabled={isLoading}
+            disabled={isLoading || (formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword)}
           >
             <Text style={styles.submitBtnText}>{isLoading ? 'Signing up...' : `Sign Up as ${userType === 'patient' ? 'Patient' : 'Doctor'}`}</Text>
           </TouchableOpacity>
@@ -430,6 +451,8 @@ const styles = StyleSheet.create({
   halfInput: { width: '48%' },
   labelText: { fontSize: 13, color: '#374151', fontWeight: '600', marginBottom: 5, marginTop: 10 },
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#fff' },
+  inputError: { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' },
+  errorHint: { color: '#EF4444', fontSize: 11, fontWeight: '500', marginTop: 3 },
 
   /* ── Avatar ── */
   avatarContainer: {

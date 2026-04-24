@@ -161,7 +161,7 @@ export default function AudioCallScreen() {
                                         )}
                                     </View>
                                 </View>
-                                <Text style={styles.patientNameOverlay}>{params.patientName || "Mock Patient"}</Text>
+                                <Text style={styles.patientNameOverlay}>{params.patientName || "Patient"}</Text>
                                 <Text style={styles.audioStatus}>Audio Call - Secure</Text>
                             </View>
                         )}

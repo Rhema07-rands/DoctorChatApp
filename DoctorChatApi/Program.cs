@@ -180,15 +180,32 @@ public class Program
         {
             if (file == null || file.Length == 0) return Results.BadRequest("No file uploaded.");
             await using var stream = file.OpenReadStream();
-            var uploadParams = new RawUploadParams
+            var fileDesc = new FileDescription(file.FileName, stream);
+            string url = "";
+            string error = null;
+
+            if (file.ContentType != null && (file.ContentType.StartsWith("audio") || file.ContentType.StartsWith("video")))
             {
-                File = new FileDescription(file.FileName, stream),
-                Folder = "doctorchat"
-            };
-            var result = await cloudinary.UploadAsync(uploadParams);
-            if (result.Error != null)
-                return Results.Problem($"Cloudinary upload failed: {result.Error.Message}");
-            return Results.Ok(new { Url = result.SecureUrl.ToString() });
+                var result = await cloudinary.UploadAsync(new VideoUploadParams { File = fileDesc, Folder = "doctorchat" });
+                error = result.Error?.Message;
+                url = result.SecureUrl?.ToString();
+            }
+            else if (file.ContentType != null && file.ContentType.StartsWith("image"))
+            {
+                var result = await cloudinary.UploadAsync(new ImageUploadParams { File = fileDesc, Folder = "doctorchat" });
+                error = result.Error?.Message;
+                url = result.SecureUrl?.ToString();
+            }
+            else
+            {
+                var result = await cloudinary.UploadAsync(new RawUploadParams { File = fileDesc, Folder = "doctorchat" });
+                error = result.Error?.Message;
+                url = result.SecureUrl?.ToString();
+            }
+
+            if (error != null)
+                return Results.Problem($"Cloudinary upload failed: {error}");
+            return Results.Ok(new { Url = url });
         }).DisableAntiforgery();
 
         app.MapPut("/api/profile/picture", async (HttpContext httpContext, DoctorChatDbContext db, [FromBody] ProfilePictureUpdateRequest req) =>
@@ -231,24 +248,31 @@ public class Program
         app.MapPost("/api/auth/login", async ([FromBody] LoginRequest request, DoctorChatDbContext db, AuthService authService) =>
         {
             var admin = await db.Admins.FirstOrDefaultAsync(a => a.Email == request.Email);
+            var patient = await db.Patients.FirstOrDefaultAsync(p => p.Email == request.Email);
+            var doctor = await db.Doctors.FirstOrDefaultAsync(d => d.Email == request.Email);
+
+            if (admin == null && patient == null && doctor == null)
+            {
+                return Results.NotFound(new { message = "This account doesn't exist" });
+            }
+
             if (admin != null && BCrypt.Net.BCrypt.Verify(request.Password, admin.PasswordHash))
             {
                 if (admin.IsSuspended) return Results.Problem("Account suspended", statusCode: 403);
                 return Results.Ok(new { Token = authService.GenerateToken(admin.Id, admin.Role, admin.FirstName, admin.LastName) });
             }
-            var patient = await db.Patients.FirstOrDefaultAsync(p => p.Email == request.Email);
             if (patient != null && BCrypt.Net.BCrypt.Verify(request.Password, patient.PasswordHash))
             {
                 if (patient.IsSuspended) return Results.Problem("Account suspended.", statusCode: 403);
                 return Results.Ok(new { Token = authService.GenerateToken(patient.Id, patient.Role, patient.FirstName, patient.LastName), User = patient.ToDto() });
             }
-            var doctor = await db.Doctors.FirstOrDefaultAsync(d => d.Email == request.Email);
             if (doctor != null && BCrypt.Net.BCrypt.Verify(request.Password, doctor.PasswordHash))
             {
                 if (doctor.IsSuspended) return Results.Problem("Account suspended.", statusCode: 403);
                 return Results.Ok(new { Token = authService.GenerateToken(doctor.Id, doctor.Role, doctor.FirstName, doctor.LastName), User = doctor.ToDto() });
             }
-            return Results.Unauthorized();
+            
+            return Results.Json(new { message = "Incorrect password" }, statusCode: 401);
         });
 
         app.MapGet("/api/admin/{id:guid}", async (Guid id, HttpContext httpContext, DoctorChatDbContext db) =>

@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -38,7 +39,8 @@ export default function DoctorDashboard() {
     getPatientById,
     startConsultation,
     appointments,
-    refreshAppointments
+    refreshAppointments,
+    isLoading: isApptsLoading
   } = useAppointments();
 
   // Get real data
@@ -139,9 +141,19 @@ export default function DoctorDashboard() {
 
   const { colors: themeColors, isDark } = useTheme();
 
+  const isWakingUp = isApptsLoading && appointments.length === 0;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {isWakingUp && (
+        <View style={[styles.wakingUpOverlay, { backgroundColor: isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255, 255, 255, 0.85)' }]}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={[styles.wakingUpTitle, { color: themeColors.text }]}>Establishing a secure connection...</Text>
+          <Text style={styles.wakingUpSub}>Please wait while we encrypt and load your dashboard (up to 30s).</Text>
+        </View>
+      )}
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         {/* Profile Card */}
         <View style={[styles.card, { backgroundColor: themeColors.card }]}>
@@ -315,8 +327,27 @@ export default function DoctorDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
-  scrollContent: { padding: 16, paddingTop: 40 },
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  scroll: {
+    paddingBottom: 40,
+    padding: 16,
+    paddingTop: 40
+  },
+  wakingUpOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 9999,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  wakingUpTitle: {
+    marginTop: 16, fontSize: 16, fontWeight: 'bold', color: '#1E293B', textAlign: 'center', paddingHorizontal: 20
+  },
+  wakingUpSub: {
+    marginTop: 6, fontSize: 13, color: '#64748B', textAlign: 'center', paddingHorizontal: 20, lineHeight: 18
+  },
+
   header: { marginBottom: 20, paddingTop: 10 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1E293B' },
   headerSubtitle: { fontSize: 14, color: '#64748B' },

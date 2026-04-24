@@ -2,7 +2,14 @@ import { api } from './api';
 
 export const uploadFile = async (fileUri: string, mimeType: string) => {
     const formData = new FormData();
-    const filename = fileUri.split('/').pop() || 'upload.jpg';
+    let filename = fileUri.split('/').pop() || 'upload.bin';
+
+    if (!filename.includes('.')) {
+        if (mimeType.includes('image')) filename += '.jpg';
+        else if (mimeType.includes('audio')) filename += '.m4a';
+        else if (mimeType.includes('video')) filename += '.mp4';
+        else filename += '.bin';
+    }
 
     // React Native requires this specific object structure for sending files
     formData.append('file', {

@@ -14,16 +14,22 @@ export default function LandingPage() {
     hydrate();
   }, []);
 
-  // Once hydration is done, redirect if logged in
+  // Once hydration is done, redirect if logged in.
+  // We defer inside setTimeout(0) so the Stack navigator in _layout.tsx is
+  // fully mounted before we attempt navigation — prevents the
+  // "Attempted to navigate before mounting the Root Layout" error.
   useEffect(() => {
     if (!isHydrated) return; // still checking SecureStore
 
     if (isAuthenticated && userRole) {
-      if (userRole === 'doctor') {
-        router.replace('/(tab)/Doctor_page/doctor_dashboard');
-      } else {
-        router.replace('/(tab)/Patient_page/patient_dashboard');
-      }
+      const timer = setTimeout(() => {
+        if (userRole === 'doctor') {
+          router.replace('/(tab)/Doctor_page/doctor_dashboard');
+        } else {
+          router.replace('/(tab)/Patient_page/patient_dashboard');
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isHydrated, isAuthenticated, userRole]);
 
@@ -70,6 +76,13 @@ export default function LandingPage() {
           >
             <Text style={styles.registerButtonText}>Create Account</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.tutorialButton}
+            onPress={() => router.push('/tutorial')}
+          >
+            <Text style={styles.tutorialButtonText}>New here? See how it works</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -91,4 +104,6 @@ const styles = StyleSheet.create({
   loginButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
   registerButton: { backgroundColor: 'white', borderWidth: 2, borderColor: '#1E3A8A' },
   registerButtonText: { color: '#1E3A8A', fontSize: 18, fontWeight: 'bold' },
+  tutorialButton: { marginTop: 15, paddingVertical: 10, alignItems: 'center' },
+  tutorialButtonText: { color: '#6B7280', fontSize: 16, fontWeight: '500', textDecorationLine: 'underline' },
 });

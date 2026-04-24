@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Image,
@@ -92,10 +93,12 @@ const HEALTH_TIPS = [
 
 export default function PatientDashboard() {
     const router = useRouter();
-    const { appointments, updateAppointmentStatus, refreshAppointments } = useAppointments();
-    const { doctors, getDoctorById } = useDoctorDirectory();
+    const { appointments, updateAppointmentStatus, refreshAppointments, isLoading: isApptsLoading } = useAppointments();
+    const { doctors, getDoctorById, isLoading: isDocsLoading } = useDoctorDirectory();
     const { patientName, patientAge, patientId, patientGender, patientBloodGroup, patientGenotype, profilePictureUrl } = useUser();
     const { colors, isDark } = useTheme();
+
+    const isWakingUp = (isApptsLoading || isDocsLoading) && doctors.length === 0 && appointments.length === 0;
 
 
     useFocusEffect(
@@ -200,6 +203,14 @@ export default function PatientDashboard() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+            {isWakingUp && (
+                <View style={[styles.wakingUpOverlay, { backgroundColor: 'rgba(255, 255, 255, 0.85)' }]}>
+                    <ActivityIndicator size="large" color="#3B82F6" />
+                    <Text style={styles.wakingUpTitle}>Establishing a secure connection...</Text>
+                    <Text style={styles.wakingUpSub}>Please wait while we encrypt and load your dashboard (up to 30s).</Text>
+                </View>
+            )}
+
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
                 {/* ── Header ─────────────────────────────────── */}
@@ -225,14 +236,22 @@ export default function PatientDashboard() {
                                     <Text style={[styles.patientAvatarText, { color: colors.primary }]}>{patientName.split(' ').map(n => n[0]).join('')}</Text>
                                 )}
                             </View>
-                            <View style={styles.patientInfo}>
-                                <Text style={[styles.patientName, { color: colors.text }]}>{patientName}</Text>
+                            <View style={[styles.patientInfo, { flex: 1 }]}>
+                                <Text style={[styles.patientName, { color: colors.text }]} numberOfLines={1}>{patientName}</Text>
                                 <Text style={[styles.patientMeta, { color: colors.textMuted }]}>• Age: {patientAge} • Gender: {patientGender || 'Unknown'}</Text>
                                 <View style={styles.verifiedRow}>
                                     <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
                                     <Text style={styles.verifiedText}>Verified</Text>
                                 </View>
                             </View>
+
+                            <TouchableOpacity 
+                                style={[styles.profileSideBtn, { backgroundColor: isDark ? colors.surfaceAlt : '#F0FDF4' }]}
+                                onPress={() => router.push('/Patient_subpage/first_aid')}
+                            >
+                                <Ionicons name="medkit-outline" size={24} color="#16A34A" />
+                                <Text style={{fontSize: 10, color: '#16A34A', fontWeight: 'bold', marginTop: 2}}>First Aid</Text>
+                            </TouchableOpacity>
                         </View>
 
                         {/* Health quick-stats */}
@@ -262,7 +281,15 @@ export default function PatientDashboard() {
                             key={a.id}
                             style={styles.actionItem}
                             activeOpacity={0.75}
-                            onPress={() => (a as any).action === 'nearby' ? showNearbyPicker() : router.push((a as any).route)}
+                            onPress={() => {
+                                if ((a as any).action === 'nearby') {
+                                    showNearbyPicker();
+                                } else if ((a as any).action === 'sos') {
+                                    Linking.openURL('tel:112');
+                                } else {
+                                    router.push((a as any).route);
+                                }
+                            }}
                         >
                             <View style={[styles.actionIconBox, { backgroundColor: isDark ? colors.surfaceAlt : a.bg }]}>
                                 <Ionicons name={a.icon} size={24} color={a.iconColor} />
@@ -402,6 +429,16 @@ export default function PatientDashboard() {
                 {/* Bottom spacer */}
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            <TouchableOpacity 
+                style={styles.sosFab}
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL('tel:112')}
+            >
+                <Ionicons name="warning-outline" size={28} color="#FFF" />
+                <Text style={styles.sosFabText}>SOS</Text>
+            </TouchableOpacity>
+
         </SafeAreaView>
     );
 }
@@ -411,6 +448,18 @@ export default function PatientDashboard() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8FAFC' },
     scroll: { paddingHorizontal: 20, paddingTop: 12 },
+
+    wakingUpOverlay: {
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 9999,
+        justifyContent: 'center', alignItems: 'center',
+    },
+    wakingUpTitle: {
+        marginTop: 16, fontSize: 16, fontWeight: 'bold', color: '#1E293B', textAlign: 'center', paddingHorizontal: 20
+    },
+    wakingUpSub: {
+        marginTop: 6, fontSize: 13, color: '#64748B', textAlign: 'center', paddingHorizontal: 20, lineHeight: 18
+    },
 
     // ── Header
     header: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
@@ -438,8 +487,21 @@ const styles = StyleSheet.create({
     profileRow: { flexDirection: 'row', alignItems: 'center' },
     patientAvatar: {
         width: 54, height: 54, borderRadius: 27,
-        backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center',
+        justifyContent: 'center', alignItems: 'center', marginRight: 14, overflow: 'hidden'
     },
+    profileSideBtn: {
+        width: 60, height: 60, borderRadius: 14,
+        justifyContent: 'center', alignItems: 'center',
+        marginLeft: 8, borderWidth: 1, borderColor: '#DCFCE7'
+    },
+    sosFab: {
+        position: 'absolute', bottom: 30, right: 30,
+        width: 64, height: 64, borderRadius: 32,
+        backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+        elevation: 8, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8,
+    },
+    sosFabText: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
+
     patientAvatarText: { color: '#3B82F6', fontWeight: '700', fontSize: 18 },
     patientInfo: { flex: 1, marginLeft: 14 },
     patientName: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

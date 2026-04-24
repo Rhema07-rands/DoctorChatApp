@@ -91,194 +91,10 @@ type AppointmentContextType = {
     searchPatients: (query: string) => Patient[];
     refreshAppointments: () => Promise<void>;
     rescheduleAppointment: (id: string, newDateTime: string) => Promise<boolean>;
+    isLoading: boolean;
 };
 
-// ============================================================================
-// MOCK DATA
-// ============================================================================
 
-const MOCK_PATIENTS: Patient[] = [
-    {
-        id: 'p1',
-        name: 'John Doe',
-        age: 45,
-        gender: 'Male',
-        phone: '+1234567890',
-        email: 'john.doe@email.com',
-        bloodType: 'O+',
-        allergies: ['Penicillin'],
-        medications: ['Aspirin 100mg'],
-        medicalHistory: 'Hypertension, Type 2 Diabetes',
-        lastVisit: '2026-01-10',
-        totalConsultations: 8,
-        initials: 'JD',
-        avatarColor: '#3B82F6'
-    },
-    {
-        id: 'p2',
-        name: 'Alice Smith',
-        age: 32,
-        gender: 'Female',
-        phone: '+1234567891',
-        email: 'alice.smith@email.com',
-        bloodType: 'A+',
-        allergies: [],
-        medications: [],
-        medicalHistory: 'No significant history',
-        lastVisit: '2026-01-12',
-        totalConsultations: 3,
-        initials: 'AS',
-        avatarColor: '#10B981'
-    },
-    {
-        id: 'p3',
-        name: 'Robert Johnson',
-        age: 58,
-        gender: 'Male',
-        phone: '+1234567892',
-        email: 'robert.j@email.com',
-        bloodType: 'B+',
-        allergies: ['Sulfa drugs'],
-        medications: ['Metformin 500mg', 'Lisinopril 10mg'],
-        medicalHistory: 'Diabetes, High blood pressure',
-        lastVisit: '2026-01-08',
-        totalConsultations: 15,
-        initials: 'RJ',
-        avatarColor: '#F59E0B'
-    },
-    {
-        id: 'p4',
-        name: 'Emily Davis',
-        age: 28,
-        gender: 'Female',
-        phone: '+1234567893',
-        email: 'emily.d@email.com',
-        bloodType: 'AB+',
-        allergies: [],
-        medications: [],
-        lastVisit: '2026-01-11',
-        totalConsultations: 2,
-        initials: 'ED',
-        avatarColor: '#8B5CF6'
-    },
-    {
-        id: 'p5',
-        name: 'Michael Brown',
-        age: 41,
-        gender: 'Male',
-        phone: '+1234567894',
-        email: 'michael.b@email.com',
-        bloodType: 'O-',
-        allergies: ['Latex'],
-        medications: ['Atorvastatin 20mg'],
-        medicalHistory: 'High cholesterol',
-        lastVisit: '2026-01-09',
-        totalConsultations: 6,
-        initials: 'MB',
-        avatarColor: '#EF4444'
-    }
-];
-
-const MOCK_APPOINTMENTS: Appointment[] = [
-    {
-        id: 'a1', patientId: 'p1', patientName: 'John Doe', doctorId: 'd1', doctorName: 'Dr. Sarah Johnson',
-        dateTime: '2026-03-13T10:00:00', date: '2026-03-13', time: '10:00 AM',
-        type: 'Video', reason: 'Chest pain consultation', status: 'Confirmed', duration: 30
-    },
-    {
-        id: 'a2', patientId: 'p2', patientName: 'Alice Smith', doctorId: 'd2', doctorName: 'Dr. Michael Chen',
-        dateTime: '2026-03-15T14:30:00', date: '2026-03-15', time: '2:30 PM',
-        type: 'Chat', reason: 'Routine checkup', status: 'Pending', duration: 20
-    },
-    {
-        id: 'a3', patientId: 'p3', patientName: 'Robert Johnson', doctorId: 'd3', doctorName: 'Dr. Emily Rodriguez',
-        dateTime: '2026-03-14T09:00:00', date: '2026-03-14', time: '9:00 AM',
-        type: 'Audio', reason: 'Follow-up on diabetes management', status: 'Confirmed', duration: 30
-    },
-    {
-        id: 'a4', patientId: 'p4', patientName: 'Emily Davis', doctorId: 'd4', doctorName: 'Dr. James Wilson',
-        dateTime: '2026-03-14T11:30:00', date: '2026-03-14', time: '11:30 AM',
-        type: 'Video', reason: 'Skin rash examination', status: 'Pending', duration: 20
-    },
-    {
-        id: 'a5', patientId: 'p5', patientName: 'Michael Brown', doctorId: 'd5', doctorName: 'Dr. Olivia Martinez',
-        dateTime: '2026-01-12T15:00:00', date: '2026-01-12', time: '3:00 PM',
-        type: 'Video', reason: 'Cholesterol review', status: 'Completed', duration: 25
-    },
-    {
-        id: 'a6', patientId: 'p1', patientName: 'John Doe', doctorId: 'd6', doctorName: 'Dr. David Kim',
-        dateTime: '2026-01-11T10:00:00', date: '2026-01-11', time: '10:00 AM',
-        type: 'Chat', reason: 'Medication refill', status: 'Completed', duration: 15
-    },
-    {
-        id: 'a7', patientId: 'p2', patientName: 'Alice Smith', doctorId: 'd7', doctorName: 'Dr. Aisha Patel',
-        dateTime: '2026-01-10T14:00:00', date: '2026-01-10', time: '2:00 PM',
-        type: 'Video', reason: 'Initial consultation', status: 'Cancelled', duration: 30
-    }
-];
-
-const MOCK_CONSULTATIONS: Consultation[] = [
-    {
-        id: 'c1',
-        appointmentId: 'a5',
-        patientId: 'p5',
-        patientName: 'Michael Brown',
-        type: 'Video',
-        startTime: '2026-01-12T15:00:00',
-        endTime: '2026-01-12T15:25:00',
-        duration: 25,
-        notes: 'Patient reports improved cholesterol levels. Continue current medication.',
-        diagnosis: 'Hyperlipidemia - improving',
-        prescription: 'Continue Atorvastatin 20mg daily',
-        isActive: false
-    },
-    {
-        id: 'c2',
-        appointmentId: 'a6',
-        patientId: 'p1',
-        patientName: 'John Doe',
-        type: 'Chat',
-        startTime: '2026-01-11T10:00:00',
-        endTime: '2026-01-11T10:15:00',
-        duration: 15,
-        notes: 'Medication refill approved. Patient stable.',
-        diagnosis: 'Hypertension - stable',
-        prescription: 'Aspirin 100mg - 30 day supply',
-        isActive: false
-    },
-    {
-        id: 'c3',
-        patientId: 'p2',
-        patientName: 'Alice Smith',
-        type: 'Video',
-        startTime: '2026-01-10T14:00:00',
-        endTime: '2026-01-10T14:30:00',
-        duration: 30,
-        notes: 'Initial video call. Patient discussed fatigue.',
-        diagnosis: 'General malaise',
-        isActive: false
-    },
-    {
-        id: 'c4',
-        patientId: 'p3',
-        patientName: 'Robert Johnson',
-        type: 'Audio',
-        startTime: '2026-01-09T11:00:00',
-        endTime: '2026-01-09T11:20:00',
-        duration: 20,
-        notes: 'Audio consultation for sugar levels.',
-        isActive: false
-    },
-    {
-        id: 'c5',
-        patientId: 'p4',
-        patientName: 'Emily Davis',
-        type: 'Video',
-        startTime: '2026-01-08T16:30:00',
-        duration: 15,
-        isActive: false
-    }
-];
 
 // ============================================================================
 // CONTEXT & PROVIDER
@@ -295,14 +111,15 @@ export const AppointmentProvider = ({ children }: { children: React.ReactNode })
     // Inject our new Auth context so we know whether we are a doctor or a patient!
     const { userRole, patientId, firstName, lastName } = useUser();
 
-    // Default to empty; if backend fails we catch and restore mock
     const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [patients] = useState<Patient[]>(MOCK_PATIENTS);
+    const [patients] = useState<Patient[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Function to manually re-fetch data
     const refreshAppointments = async () => {
         if (!patientId && userRole === 'patient') return;
 
+        setIsLoading(true);
         try {
             let appointmentData: any[] = [];
             const endpoint = `/appointments`;
@@ -339,8 +156,9 @@ export const AppointmentProvider = ({ children }: { children: React.ReactNode })
                 setAppointments(appointmentData);
             }
         } catch (error) {
-            console.log("Could not fetch live appointments, reverting to mock DB for demonstration.", error);
-            setAppointments(MOCK_APPOINTMENTS); // Revert to mock for robust UI demo
+            console.log("Could not fetch live appointments.", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -602,7 +420,8 @@ export const AppointmentProvider = ({ children }: { children: React.ReactNode })
             getPatientConsultations,
             searchPatients,
             refreshAppointments,
-            rescheduleAppointment
+            rescheduleAppointment,
+            isLoading
         }}>
             {children}
         </AppointmentContext.Provider>
