@@ -35,7 +35,18 @@ export default function Dashboard() {
     }, []);
 
     if (loading) return <div className="loading"><div className="spinner" /> Loading dashboard…</div>;
-    if (!stats) return <div className="loading">Failed to load stats</div>;
+    
+    // If stats is missing or invalid (e.g. an error object returned with 200 status)
+    if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
+        return (
+            <div className="loading" style={{ flexDirection: 'column', gap: '10px' }}>
+                <p>Failed to load statistics.</p>
+                <button onClick={() => window.location.reload()} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: 'white', cursor: 'pointer' }}>
+                    Retry
+                </button>
+            </div>
+        );
+    }
 
     const appointmentStatusData = [
         { name: 'Pending', value: stats.pendingAppointments },

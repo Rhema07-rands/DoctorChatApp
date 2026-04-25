@@ -33,7 +33,11 @@ export default function Login({ onLogin }) {
                     <p>DoctorChat Management Dashboard</p>
                 </div>
 
-                {error && <div className="login-error">{error}</div>}
+                {error && (
+                    <div className="login-error">
+                        {typeof error === 'object' ? (error.message || JSON.stringify(error)) : error}
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">

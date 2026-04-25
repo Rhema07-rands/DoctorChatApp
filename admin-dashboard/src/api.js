@@ -14,6 +14,19 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// New: Handle token expiration/errors globally
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            console.warn("Unauthorized! Clearing token...");
+            localStorage.removeItem('admin_token');
+            window.location.href = '/'; // Force redirect to login
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const login = (email, password) => {
     console.log("Attempting login for:", email);
     return api.post('/auth/login', { email, password });
