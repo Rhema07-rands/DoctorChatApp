@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 
-interface Props { label: string; data: string[]; onSelect: (item: string) => void; selectedVal: string; }
+interface Props { label: string; data: string[]; onSelect: (item: string) => void; selectedVal: string; disabled?: boolean; }
 
-export default function CustomDropdown({ label, data, onSelect, selectedVal }: Props) {
+export default function CustomDropdown({ label, data, onSelect, selectedVal, disabled }: Props) {
   const [visible, setVisible] = useState(false);
 
   return (
     <>
-      <TouchableOpacity style={styles.button} onPress={() => setVisible(true)}>
-        <Text style={{ color: selectedVal ? '#000' : '#6B7280' }}>{selectedVal || label}</Text>
-        <Text>⌄</Text>
+      <TouchableOpacity 
+        style={[styles.button, disabled && styles.buttonDisabled]} 
+        onPress={() => setVisible(true)}
+        disabled={disabled}
+      >
+        <Text style={{ color: disabled ? '#9CA3AF' : (selectedVal ? '#000' : '#6B7280') }}>{selectedVal || label}</Text>
+        <Text style={{ color: disabled ? '#9CA3AF' : '#000' }}>⌄</Text>
       </TouchableOpacity>
 
       <Modal transparent visible={visible} animationType="fade">
@@ -36,6 +40,7 @@ export default function CustomDropdown({ label, data, onSelect, selectedVal }: P
 
 const styles = StyleSheet.create({
   button: { flexDirection: 'row', justifyContent: 'space-between', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#fff', marginBottom: 15 },
+  buttonDisabled: { backgroundColor: '#F3F4F6', borderColor: '#D1D5DB' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   menu: { width: '80%', backgroundColor: 'white', borderRadius: 8, maxHeight: 300, padding: 10 },
   item: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }

@@ -136,7 +136,7 @@ export default function RegisterScreen() {
         return;
       }
     } else {
-      if (!formData.dob || !formData.gender || !formData.address || !formData.bloodGroup || !formData.genotype) {
+      if (!formData.dob || !formData.gender || !formData.address || !formData.bloodGroup || !formData.genotype || !formData.allergies) {
         Alert.alert("Error", "Please fill in all medical profile fields.");
         return;
       }
@@ -272,7 +272,7 @@ export default function RegisterScreen() {
                 <Ionicons name="person" size={44} color="#9CA3AF" />
               )}
             </View>
-            <TouchableOpacity onPress={pickAvatar} style={styles.cameraBadge}>
+            <TouchableOpacity onPress={pickAvatar} style={[styles.cameraBadge, isLoading && { opacity: 0.5 }]} disabled={isLoading}>
               <Ionicons name="camera" size={16} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -282,32 +282,34 @@ export default function RegisterScreen() {
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="First Name" />
-              <TextInput style={styles.input} placeholder="John" onChangeText={(t) => handleInputChange('firstName', t)} editable={!isLoading} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.firstName} placeholder="John" onChangeText={(t) => handleInputChange('firstName', t)} editable={!isLoading} />
             </View>
             <View style={styles.halfInput}>
               <Label text="Last Name" />
-              <TextInput style={styles.input} placeholder="Doe" onChangeText={(t) => handleInputChange('lastName', t)} editable={!isLoading} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.lastName} placeholder="Doe" onChangeText={(t) => handleInputChange('lastName', t)} editable={!isLoading} />
             </View>
           </View>
 
           <Label text="Email" />
-          <TextInput style={styles.input} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" onChangeText={(t) => handleInputChange('email', t)} editable={!isLoading} />
+          <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.email} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" onChangeText={(t) => handleInputChange('email', t)} editable={!isLoading} />
 
           <Label text="Phone Number" />
-          <TextInput style={styles.input} placeholder="+1 234 567 8900" keyboardType="phone-pad" maxLength={11} onChangeText={(t) => handleInputChange('phone', t)} editable={!isLoading} />
+          <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.phone} placeholder="+1 234 567 8900" keyboardType="phone-pad" maxLength={11} onChangeText={(t) => handleInputChange('phone', t)} editable={!isLoading} />
 
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="Password" />
-              <TextInput style={styles.input} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('password', t)} editable={!isLoading} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.password} placeholder="••••••••" secureTextEntry onChangeText={(t) => handleInputChange('password', t)} editable={!isLoading} />
             </View>
             <View style={styles.halfInput}>
               <Label text="Confirm Password" />
               <TextInput
                 style={[
                   styles.input,
+                  isLoading && styles.inputDisabled,
                   formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && styles.inputError
                 ]}
+                value={formData.confirmPassword}
                 placeholder="••••••••"
                 secureTextEntry
                 onChangeText={(t) => handleInputChange('confirmPassword', t)}
@@ -322,7 +324,7 @@ export default function RegisterScreen() {
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="Date of Birth" />
-              <TextInput style={styles.input} placeholder="mm/dd/yyyy" onChangeText={(t) => handleInputChange('dob', t)} editable={!isLoading} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.dob} placeholder="mm/dd/yyyy" onChangeText={(t) => handleInputChange('dob', t)} editable={!isLoading} />
             </View>
             <View style={styles.halfInput}>
               <Label text="Gender" />
@@ -331,6 +333,7 @@ export default function RegisterScreen() {
                 data={GENDER_OPTIONS}
                 selectedVal={formData.gender}
                 onSelect={(val) => handleInputChange('gender', val)}
+                disabled={isLoading}
               />
             </View>
           </View>
@@ -339,28 +342,28 @@ export default function RegisterScreen() {
           {userType === 'patient' && (
             <>
               <Label text="Address" />
-              <TextInput style={styles.input} placeholder="123 Main St" onChangeText={(t) => handleInputChange('address', t)} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.address} placeholder="123 Main St" onChangeText={(t) => handleInputChange('address', t)} editable={!isLoading} />
 
               <View style={styles.row}>
                 <View style={styles.halfInput}>
                   <Label text="Blood Group" />
-                  <CustomDropdown label="Select" data={BLOOD_GROUPS} selectedVal={formData.bloodGroup} onSelect={(val) => handleInputChange('bloodGroup', val)} />
+                  <CustomDropdown label="Select" data={BLOOD_GROUPS} selectedVal={formData.bloodGroup} onSelect={(val) => handleInputChange('bloodGroup', val)} disabled={isLoading} />
                 </View>
                 <View style={styles.halfInput}>
                   <Label text="Genotype" />
-                  <CustomDropdown label="Select" data={GENOTYPES} selectedVal={formData.genotype} onSelect={(val) => handleInputChange('genotype', val)} />
+                  <CustomDropdown label="Select" data={GENOTYPES} selectedVal={formData.genotype} onSelect={(val) => handleInputChange('genotype', val)} disabled={isLoading} />
                 </View>
               </View>
 
               <Label text="Known Allergies" />
-              <TextInput style={styles.input} placeholder="e.g. Peanuts" onChangeText={(t) => handleInputChange('allergies', t)} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.allergies} placeholder="e.g. Peanuts" onChangeText={(t) => handleInputChange('allergies', t)} editable={!isLoading} />
 
               <Label text="Doctor Specialty" />
-              <CustomDropdown label="Select" data={SPECIALTIES} selectedVal={formData.specialization} onSelect={(val) => handleInputChange('specialization', val)} />
+              <CustomDropdown label="Select" data={SPECIALTIES} selectedVal={formData.specialization} onSelect={(val) => handleInputChange('specialization', val)} disabled={isLoading} />
 
               {/* Medical Records Upload */}
               <Label text="Medical Records (PDF / Image)" />
-              <TouchableOpacity onPress={pickDocument} style={styles.documentPicker}>
+              <TouchableOpacity onPress={pickDocument} style={[styles.documentPicker, isLoading && styles.documentPickerDisabled]} disabled={isLoading}>
                 <Ionicons name="document-attach" size={20} color="#6B7280" />
                 <Text numberOfLines={1} style={styles.documentName}>
                   {selectedDocument ? selectedDocument.name : "Upload medical records"}
@@ -374,42 +377,42 @@ export default function RegisterScreen() {
           {userType === 'doctor' && (
             <>
               <Label text="Bio" />
-              <TextInput style={styles.input} placeholder="Short bio..." onChangeText={(t) => handleInputChange('bio', t)} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.bio} placeholder="Short bio..." onChangeText={(t) => handleInputChange('bio', t)} editable={!isLoading} />
 
               <View style={styles.row}>
                 <View style={styles.halfInput}>
                   <Label text="Education" />
-                  <TextInput style={styles.input} placeholder="Medical School" onChangeText={(t) => handleInputChange('education', t)} />
+                  <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.education} placeholder="Medical School" onChangeText={(t) => handleInputChange('education', t)} editable={!isLoading} />
                 </View>
                 <View style={styles.halfInput}>
                   <Label text="Experience" />
-                  <TextInput style={styles.input} placeholder="e.g. 5 Years" onChangeText={(t) => handleInputChange('experience', t)} />
+                  <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.experience} placeholder="e.g. 5 Years" onChangeText={(t) => handleInputChange('experience', t)} editable={!isLoading} />
                 </View>
               </View>
 
               <Label text="Languages Spoken" />
-              <TextInput style={styles.input} placeholder="English, Spanish" onChangeText={(t) => handleInputChange('languages', t)} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.languages} placeholder="English, Spanish" onChangeText={(t) => handleInputChange('languages', t)} editable={!isLoading} />
 
               <View style={styles.row}>
                 <View style={styles.halfInput}>
                   <Label text="Clinic Name" />
-                  <TextInput style={styles.input} placeholder="Healthy Clinic" onChangeText={(t) => handleInputChange('clinicName', t)} />
+                  <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.clinicName} placeholder="Healthy Clinic" onChangeText={(t) => handleInputChange('clinicName', t)} editable={!isLoading} />
                 </View>
                 <View style={styles.halfInput}>
                   <Label text="Medical License #" />
-                  <TextInput style={styles.input} placeholder="MD-12345" onChangeText={(t) => handleInputChange('medicalLicense', t)} />
+                  <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.medicalLicense} placeholder="MD-12345" onChangeText={(t) => handleInputChange('medicalLicense', t)} editable={!isLoading} />
                 </View>
               </View>
 
               <Label text="Specialization" />
-              <CustomDropdown label="Select Specialization" data={SPECIALTIES} selectedVal={formData.specialization} onSelect={(val) => handleInputChange('specialization', val)} />
+              <CustomDropdown label="Select Specialization" data={SPECIALTIES} selectedVal={formData.specialization} onSelect={(val) => handleInputChange('specialization', val)} disabled={isLoading} />
 
               <Label text="Treated Conditions" />
-              <TextInput style={styles.input} placeholder="Heart Failure, Flu" onChangeText={(t) => handleInputChange('conditions', t)} />
+              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.conditions} placeholder="Heart Failure, Flu" onChangeText={(t) => handleInputChange('conditions', t)} editable={!isLoading} />
 
               {/* Professional Certificate Upload */}
               <Label text="Professional Certificate (PDF / Image)" />
-              <TouchableOpacity onPress={pickDocument} style={styles.documentPicker}>
+              <TouchableOpacity onPress={pickDocument} style={[styles.documentPicker, isLoading && styles.documentPickerDisabled]} disabled={isLoading}>
                 <Ionicons name="document-attach" size={20} color="#6B7280" />
                 <Text numberOfLines={1} style={styles.documentName}>
                   {selectedDocument ? selectedDocument.name : "Upload certificate"}
@@ -451,6 +454,7 @@ const styles = StyleSheet.create({
   halfInput: { width: '48%' },
   labelText: { fontSize: 13, color: '#374151', fontWeight: '600', marginBottom: 5, marginTop: 10 },
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#fff' },
+  inputDisabled: { backgroundColor: '#F3F4F6', color: '#9CA3AF' },
   inputError: { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' },
   errorHint: { color: '#EF4444', fontSize: 11, fontWeight: '500', marginTop: 3 },
 
@@ -508,6 +512,10 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#F9FAFB',
     gap: 8,
+  },
+  documentPickerDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#E5E7EB',
   },
   documentName: {
     flex: 1,
