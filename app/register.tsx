@@ -12,7 +12,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Platform
+  Platform,
+  ActivityIndicator
 } from "react-native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +41,7 @@ export default function RegisterScreen() {
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -85,10 +87,15 @@ export default function RegisterScreen() {
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'application/pdf'],
+        type: '*/*',
       });
       if (!result.canceled) {
-        setSelectedDocument(result.assets[0]);
+        const asset = result.assets[0];
+        if (asset.size && asset.size > 52428800) {
+          Alert.alert("File Too Large", "Please select a document smaller than 50MB.");
+          return;
+        }
+        setSelectedDocument(asset);
       }
     } catch (err) {
       console.log(err);
@@ -129,20 +136,29 @@ export default function RegisterScreen() {
 
     if (isLoading) return;
     setIsLoading(true);
+    setLoadingMessage("Preparing...");
 
     // Role-specific checks
     if (userType === 'doctor') {
       if (!formData.specialization || !formData.medicalLicense || !formData.clinicName || !formData.bio || !formData.education || !formData.experience || !formData.languages || !formData.conditions) {
         Alert.alert("Error", "Please fill in all required professional fields.");
+        setIsLoading(false);
         return;
       }
       if (!selectedDocument) {
         Alert.alert("Error", "Please upload your professional certificate.");
+        setIsLoading(false);
         return;
       }
     } else {
       if (!formData.dob || !formData.gender || !formData.address || !formData.bloodGroup || !formData.genotype || !formData.allergies) {
         Alert.alert("Error", "Please fill in all medical profile fields.");
+        setIsLoading(false);
+        return;
+      }
+      if (!selectedDocument) {
+        Alert.alert("Error", "Please upload your medical records.");
+        setIsLoading(false);
         return;
       }
     }
@@ -154,18 +170,23 @@ export default function RegisterScreen() {
     let documentUrl = null;
 
     try {
+      if (selectedFile || selectedDocument) {
+        setLoadingMessage("Uploading files...");
+      }
       if (selectedFile) {
         profilePicUrl = await uploadFile(selectedFile.uri, selectedFile.mimeType || 'image/jpeg');
       }
       if (selectedDocument) {
-        // Simple mime type detection strictly for fallback
-        let mime = 'application/pdf';
-        if (selectedDocument.uri.endsWith('.jpg') || selectedDocument.uri.endsWith('.jpeg')) mime = 'image/jpeg';
-        if (selectedDocument.uri.endsWith('.png')) mime = 'image/png';
-        documentUrl = await uploadFile(selectedDocument.uri, selectedDocument.mimeType || mime);
+        let mime = '*/*';
+        if (selectedDocument.mimeType) mime = selectedDocument.mimeType;
+        else if (selectedDocument.uri.endsWith('.jpg') || selectedDocument.uri.endsWith('.jpeg')) mime = 'image/jpeg';
+        else if (selectedDocument.uri.endsWith('.png')) mime = 'image/png';
+        else if (selectedDocument.uri.endsWith('.pdf')) mime = 'application/pdf';
+        documentUrl = await uploadFile(selectedDocument.uri, mime);
       }
     } catch (err) {
       Alert.alert('Upload Error', 'Failed to upload files. Please try again.');
+      setIsLoading(false);
       return;
     }
 
@@ -234,6 +255,7 @@ export default function RegisterScreen() {
       Alert.alert("Registration Failed", error.response?.data || error.message || "Failed to create account");
     } finally {
       setIsLoading(false);
+      setLoadingMessage("");
     }
   };
 
@@ -467,7 +489,14 @@ export default function RegisterScreen() {
             onPress={handleSignUp}
             disabled={isLoading || (formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword)}
           >
-            <Text style={styles.submitBtnText}>{isLoading ? 'Signing up...' : `Sign Up as ${userType === 'patient' ? 'Patient' : 'Doctor'}`}</Text>
+            {isLoading ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <ActivityIndicator color="white" size="small" />
+                <Text style={styles.submitBtnText}>{loadingMessage || 'Signing up...'}</Text>
+              </View>
+            ) : (
+              <Text style={styles.submitBtnText}>{`Sign Up as ${userType === 'patient' ? 'Patient' : 'Doctor'}`}</Text>
+            )}
           </TouchableOpacity>
         </View>
         <View style={{ height: 40 }} />
