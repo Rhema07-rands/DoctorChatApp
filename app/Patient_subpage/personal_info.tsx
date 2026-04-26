@@ -10,7 +10,9 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomDropdown from '../../src/components/CustomDropdown';
 import { useUser } from '../_context/UserContext';
@@ -41,6 +43,8 @@ export default function PatientPersonalInfoScreen() {
         patientGenotype, setPatientGenotype,
         patientAllergies, setPatientAllergies,
     } = useUser();
+
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     // Local state to prevent committing to Context until "Save" is pressed
     const [form, setForm] = useState({
@@ -113,12 +117,14 @@ export default function PatientPersonalInfoScreen() {
                     <View style={styles.row}>
                         <View style={styles.halfInput}>
                             <Label text="Date of Birth" />
-                            <TextInput
-                                style={styles.input}
-                                value={form.dob}
-                                onChangeText={(t) => handleInput('dob', t)}
-                                placeholder="mm/dd/yyyy"
-                            />
+                            <TouchableOpacity 
+                                style={[styles.input, { justifyContent: 'center' }]} 
+                                onPress={() => setShowDatePicker(true)}
+                            >
+                                <Text style={{ color: form.dob ? '#1E293B' : '#9CA3AF' }}>
+                                    {form.dob || "mm/dd/yyyy"}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                         <View style={styles.halfInput}>
                             <Label text="Age" />
@@ -179,6 +185,37 @@ export default function PatientPersonalInfoScreen() {
                 </View>
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {showDatePicker && (
+                <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : undefined}>
+                    {Platform.OS === 'ios' && (
+                        <View style={styles.iosPickerHeader}>
+                            <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                                <Text style={styles.iosPickerDone}>Done</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    <DateTimePicker
+                        value={
+                            form.dob && !isNaN(new Date(form.dob).getTime())
+                                ? new Date(form.dob)
+                                : new Date()
+                        }
+                        mode="date"
+                        display="default"
+                        maximumDate={new Date()}
+                        onChange={(event, selectedDate) => {
+                            if (Platform.OS === 'android') {
+                                setShowDatePicker(false);
+                            }
+                            if (selectedDate) {
+                                const formatted = `${String(selectedDate.getMonth() + 1).padStart(2, '0')}/${String(selectedDate.getDate()).padStart(2, '0')}/${selectedDate.getFullYear()}`;
+                                handleInput('dob', formatted);
+                            }
+                        }}
+                    />
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -211,4 +248,29 @@ const styles = StyleSheet.create({
     },
     row: { flexDirection: 'row', justifyContent: 'space-between' },
     halfInput: { width: '48%' },
+
+    /* ── iOS Picker ── */
+    iosPickerContainer: {
+        backgroundColor: 'white',
+        position: 'absolute',
+        bottom: 0,
+        width: '100%',
+        borderTopWidth: 1,
+        borderColor: '#E5E7EB',
+        paddingBottom: 20,
+        zIndex: 999,
+    },
+    iosPickerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        padding: 15,
+        borderBottomWidth: 1,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#F9FAFB',
+    },
+    iosPickerDone: {
+        color: '#3B82F6',
+        fontWeight: 'bold',
+        fontSize: 16,
+    }
 });

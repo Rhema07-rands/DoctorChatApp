@@ -11,8 +11,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Platform
 } from "react-native";
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomDropdown from "../src/components/CustomDropdown";
 
@@ -27,6 +29,7 @@ const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 const GENOTYPES = ['AA', 'AS', 'SS', 'AC'];
 const SPECIALTIES = ['Cardiology', 'Dermatology', 'Neurology', 'Pediatrics', 'General Surgery', 'Obstetrics & Gynecology', 'Emergency Medicine'];
+const COUNTRY_CODES = ['+1', '+44', '+234', '+91', '+61', '+27', '+254', '+233'];
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -36,6 +39,7 @@ export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -52,6 +56,7 @@ export default function RegisterScreen() {
     conditions: '',
     specialization: 'General',
     medicalLicense: '',
+    countryCode: '+234',
     phone: '',
     bio: '',
     education: '',
@@ -172,7 +177,7 @@ export default function RegisterScreen() {
       ...(userType === 'doctor' ? {
         Specialization: formData.specialization,
         MedicalLicense: formData.medicalLicense,
-        PhoneNumber: formData.phone,
+        PhoneNumber: `${formData.countryCode}${formData.phone.replace(/^0+/, '')}`,
         Bio: formData.bio,
         Education: formData.education,
         Experience: formData.experience,
@@ -184,7 +189,7 @@ export default function RegisterScreen() {
         BloodGroup: formData.bloodGroup,
         Genotype: formData.genotype,
         Gender: formData.gender,
-        PhoneNumber: formData.phone,
+        PhoneNumber: `${formData.countryCode}${formData.phone.replace(/^0+/, '')}`,
         DateOfBirth: safeDateISO(formData.dob),
         MedicalRecordsUrl: documentUrl,
         Allergies: formData.allergies || null
@@ -249,14 +254,16 @@ export default function RegisterScreen() {
 
         <View style={styles.toggleContainer}>
           <TouchableOpacity
-            style={[styles.toggleBtn, userType === 'patient' && styles.activeToggle]}
+            style={[styles.toggleBtn, userType === 'patient' && styles.activeToggle, isLoading && { opacity: 0.5 }]}
             onPress={() => setUserType('patient')}
+            disabled={isLoading}
           >
             <Text style={{ color: userType === 'patient' ? '#1E3A8A' : '#6B7280', fontWeight: 'bold' }}>Patient</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.toggleBtn, userType === 'doctor' && styles.activeToggle]}
+            style={[styles.toggleBtn, userType === 'doctor' && styles.activeToggle, isLoading && { opacity: 0.5 }]}
             onPress={() => setUserType('doctor')}
+            disabled={isLoading}
           >
             <Text style={{ color: userType === 'doctor' ? '#1E3A8A' : '#6B7280', fontWeight: 'bold' }}>Doctor</Text>
           </TouchableOpacity>
@@ -294,7 +301,28 @@ export default function RegisterScreen() {
           <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.email} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" onChangeText={(t) => handleInputChange('email', t)} editable={!isLoading} />
 
           <Label text="Phone Number" />
-          <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.phone} placeholder="+1 234 567 8900" keyboardType="phone-pad" maxLength={11} onChangeText={(t) => handleInputChange('phone', t)} editable={!isLoading} />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ width: '30%' }}>
+              <CustomDropdown
+                label="+234"
+                data={COUNTRY_CODES}
+                selectedVal={formData.countryCode}
+                onSelect={(val) => handleInputChange('countryCode', val)}
+                disabled={isLoading}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <TextInput 
+                style={[styles.input, isLoading && styles.inputDisabled, { marginBottom: 15 }]} 
+                value={formData.phone} 
+                placeholder="906 324 5195" 
+                keyboardType="phone-pad" 
+                maxLength={11} 
+                onChangeText={(t) => handleInputChange('phone', t)} 
+                editable={!isLoading} 
+              />
+            </View>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.halfInput}>
@@ -324,7 +352,15 @@ export default function RegisterScreen() {
           <View style={styles.row}>
             <View style={styles.halfInput}>
               <Label text="Date of Birth" />
-              <TextInput style={[styles.input, isLoading && styles.inputDisabled]} value={formData.dob} placeholder="mm/dd/yyyy" onChangeText={(t) => handleInputChange('dob', t)} editable={!isLoading} />
+              <TouchableOpacity 
+                style={[styles.input, isLoading && styles.inputDisabled, { justifyContent: 'center' }]} 
+                onPress={() => setShowDatePicker(true)}
+                disabled={isLoading}
+              >
+                <Text style={{ color: formData.dob ? '#000' : '#9CA3AF' }}>
+                  {formData.dob || "mm/dd/yyyy"}
+                </Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.halfInput}>
               <Label text="Gender" />
@@ -436,6 +472,37 @@ export default function RegisterScreen() {
         </View>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {showDatePicker && (
+        <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : undefined}>
+          {Platform.OS === 'ios' && (
+            <View style={styles.iosPickerHeader}>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.iosPickerDone}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <DateTimePicker
+            value={
+              formData.dob && !isNaN(new Date(formData.dob).getTime())
+                ? new Date(formData.dob)
+                : new Date()
+            }
+            mode="date"
+            display="default"
+            maximumDate={new Date()}
+            onChange={(event, selectedDate) => {
+              if (Platform.OS === 'android') {
+                setShowDatePicker(false);
+              }
+              if (selectedDate) {
+                const formatted = `${String(selectedDate.getMonth() + 1).padStart(2, '0')}/${String(selectedDate.getDate()).padStart(2, '0')}/${selectedDate.getFullYear()}`;
+                handleInputChange('dob', formatted);
+              }
+            }}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -535,5 +602,30 @@ const styles = StyleSheet.create({
   },
 
   submitBtn: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 25 },
-  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
+  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+
+  /* ── iOS Picker ── */
+  iosPickerContainer: {
+    backgroundColor: 'white',
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    borderTopWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingBottom: 20,
+    zIndex: 999,
+  },
+  iosPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  iosPickerDone: {
+    color: '#1E3A8A',
+    fontWeight: 'bold',
+    fontSize: 16,
+  }
 });
